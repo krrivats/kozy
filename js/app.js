@@ -41,7 +41,14 @@ function render() {
       if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     });
   }
+  // Keep the search box focused (with its cursor) when data changes while you type — e.g. the other phone syncs.
+  const a = document.activeElement;
+  const keep = a && viewEl.contains(a) && a.matches('[data-search]') ? [a.selectionStart, a.selectionEnd] : null;
   viewEl.innerHTML = mod.render();
+  if (keep) {
+    const n = viewEl.querySelector('[data-search]');
+    if (n) { n.focus(); try { n.setSelectionRange(...keep); } catch { /* not supported */ } }
+  }
   document.body.dataset.route = name;
   const cbs = afterRender;
   afterRender = [];
@@ -115,5 +122,9 @@ function showError(e) {
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('SW failed', e));
+  });
+  // A reminder arrived while Kozy is open → show it as a toast too.
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.type === 'kozy-push') toast(`🔔 ${e.data.title}`);
   });
 }

@@ -1,61 +1,65 @@
-# ☀️ Good morning — Kozy Phase 1 report
+# ☀️ Good morning — Kozy v1.1 report
 
-**Short version:** Phase 1 is built and all **13 automated tests pass** ✅ (headless Chrome, iPhone size 390×844).
-It runs on your laptop in **local mode**. Firebase code is written but **OFF** and **not tested yet**, because it needs your real config.
+**Short version:** everything we agreed last night is built and committed. ✅
+- **23 app tests pass** (iPhone size 390×844), **twice in a row**.
+- **4 security-rule tests pass** in the real Firestore emulator (about 45 allow/deny checks).
+- **2 tests run the real app in Firebase mode** on local emulators: you + wife on two "phones", sign-in, live sync, roles.
+- The **reminder job** was tested with demo data.
 
----
-
-## 0. Setup check 🧰
-
-| Tool | Status |
-|---|---|
-| Node.js | ✅ v24.19.0 |
-| npm | ✅ 11.17.0 |
-| git | ✅ 2.52.0 (repo created, branch `main`) |
-| gh (GitHub CLI) | ❌ **not installed**. That's fine: the GitHub steps below use the website. |
-| Playwright | ✅ 1.64.1 + Chromium (installed in this folder for tests) |
-| context-mode plugin | ✅ active, v1.0.169. `ctx-doctor`: everything OK, one warning (install Bun for more speed, optional) |
-| frontend-design skill | ❌ **not found** on this PC. I followed the design brief by hand (compact, mobile-first, light + dark). |
-| prompt-booster skill | ✅ available (CLAUDE.md tells future sessions to use it) |
+**Not tested yet:** your real Firebase project, a real iPhone, and a real push notification arriving on a phone. Those need your config and your phone (steps below).
 
 ---
 
 ## 1. What is done ✅ / not done ❌ / known bugs 🐞
 
-### ✅ Done (tested by the automated tests)
-- 🏠 **Home**: "Left this month", days left, safe daily spend, top 3 categories, last 5 spends, a milk tile and a shopping-list tile.
-- ➕ **Floating + button** on every screen: amount → category → UPI/Cash/Card → note → Add. Edit + delete by tapping any spend.
-- 💰 **Budget**: 12 categories with your limits. Bars turn **amber at ≥80%** and **red above 100%**. Tap a category to filter. Month ‹ › switcher.
-- 🔁 **Monthly bills** (Solar EMI, WiFi, Gas) appear on Home from the 1st: **Paid** (one tap), ✕ skip, or **Confirm all**.
-- 🏦 **Savings tracker** (Festival + Emergency running totals) and 💳 **Credit card due** (starts at ₹10,000, shows what's left).
-- 📊 **6-month bar chart** (plain SVG, no library) with a dashed budget line.
-- 📄 **Export month to CSV** (opens fine in Excel, including Hindi).
-- 🧺 **Kitchen stock**: all 17 items (English / हिंदी). Two big buttons: **Bought / खरीदा** and **Finished / ख़त्म**.
-  Kozy works out how long a pack lasts, use per week, run-out date and cost per month. Chips: In stock / Running low (≤7 days) / Finished.
-- 🛒 **Auto shopping list** (finished items + items running out within 7 days). **Share** (opens the share sheet → WhatsApp on iPhone) or **Copy**.
-- 🥬 Every **Bought** with a price is added to **Groceries + veg** automatically.
-- ➕ Add / edit / delete items (name EN + HI, unit, category). Tap an item's name to see its history.
-- 🥛 **Milk log**: asks for L/day + ₹/L the first time (defaults 4 L, ₹60). **"Today's milk ✓"** in one tap, or a different amount, or skip.
-  Month calendar, total litres + ₹, and **add the milkman's bill to Milk spend** (shows the difference from Kozy's total).
-- ⚙️ **Settings**: limits, add/delete categories, monthly bills, card due, milk defaults, items, **Load demo data**, **Reset all** (with confirm), **Backup / Restore JSON**.
-- 👤 Every entry shows **who added it** ("Me" in local mode).
-- 📱 **PWA**: manifest, icons (house + ₹ coin logo), iPhone home-screen icon, and **works offline** (tested: page reloads with no internet).
-- 🌗 Light + dark mode follow the system. ₹ shows in Indian format (₹40,000).
-- 🔥 **FirestoreAdapter** fully written (Google + Email/Password sign-in, live sync between phones, offline cache). It stays OFF until `USE_FIREBASE = true`.
-- 🔒 **firestore.rules**: only your 2 emails, which must also be verified.
-- 📸 **Screenshots** of every screen, light + dark, are in [`screenshots/`](screenshots/).
+### ✅ New tonight (v1.1)
+| | Feature | Where |
+|---|---|---|
+| 👪 | **Roles**: You = full. Wife = adds spends, stock, sabzi, milk; can change/delete only *her own* spends. Viewer = sees, can't change. Only you change limits, bills, goals, milk rate, reset. Enforced on screen, in the app's data layer, AND in `firestore.rules`. | everywhere |
+| ⚡ | **Smart quick add** on the **+** button: `sabzi 250`, `auto 80 cash`, `atta 10kg 420`, `pyaz 5kg 40/kg`. Shows a preview, one tap to save. | + |
+| 🔍 | **One search box** for items (English, Hindi or Hinglish: `chawal`, `pyaz`, `आलू`). Not there? **"+ Add"**: it's saved for next time and the Bought form opens. | Stock |
+| ⚖️ | **Quick sizes** 0.5 · 1 · 2 · 5 · 10 kg (they follow the unit: L, g, pcs, dozen…) + a custom box | Bought forms |
+| ⏳ | **Countdown** per kitchen item ("6 days left · 22 Oct") with a used-up bar, **"Lasts about"** 7/15/30/45 days or custom, **warning days per item** | Stock |
+| 🥬 | **Sabzi tab**: 31 veg + fruits with emojis. Log qty + **₹/kg** (or total). Price history with **▲ / ▼ vs last time**, low/high, **+ List** to add to shopping | Stock → Sabzi |
+| 📈 | **Price history per item** (₹/kg, last, low, high, change %) | item sheets |
+| 📝 | **Remarks** on items and on each purchase | item sheets |
+| 🛒 | **Shopping mode**: tick several items in the shop → one **Done**. Tap any shopping-list pill to buy it. | Stock |
+| 🛍️ | **"Today:" strip**: what was bought today and by whom | Stock |
+| 🔁 | **Bills with any repeat**: monthly, every 2 months, quarterly, 6-monthly, yearly, **every N days** (84-day recharge). Due date + reminder N days before + **Paid / Skip**. Examples ready but paused: Electricity, Mobile recharge, LIC, Vehicle insurance, School fees, Property tax. | Settings → Bills · Home chip |
+| 🎯 | **Goals** with progress bars (demo: Diwali ₹4,500 / ₹6,000) | Settings → Goals · Budget |
+| 👥 | **Who spent what**: Me vs Wife totals + a filter on the spends list | Budget → Summary / Spends |
+| 📰 | **Activity feed**: "Wife bought Onion 2 kg · ₹80 · 12 min ago" | Home → Recent → See all |
+| 📊 | **Monthly summary in the app**: vs last month per category, who spent, sabzi price movers, biggest spends, milk | Budget → Summary |
+| 🔔 | **Reminders**: "Needs you" chips on Home (bills due · items to buy · tick milk · goals) + **phone push** at 8 AM and 9 PM through a free GitHub Actions job | Home · Settings → Reminders |
+| ↩️ | **Undo** for 5 s after delete / Finished / milk tick | toasts |
+| 📏 | **Compact UI**: Home fits one screen, stock rows half the old height, budget categories in a 2-column grid, folded settings, no sideways scrolling (tested) | everywhere |
+| 🔤 | English everywhere; **Hindi only on item names** | everywhere |
+| 🟢 | **Sync dot** in Firebase mode (green saved, amber saving/offline) | headers |
 
-### ❌ Not done / not tested
-- 🔥 **Firebase mode has NOT been run** (no real config yet). The code is written carefully, but treat it as untested until you try it this morning.
-- 📱 **Not tested on a real iPhone** yet, only in iPhone-sized headless Chrome. Check Share → WhatsApp and Add to Home Screen on the phone.
-- 🚀 Not deployed (you said no deploy tonight).
-- Phase 2 (medicines, home items, bill scan) is not started, as planned.
+### ✅ Still there from v1.0
+Budget with ₹40,000 limits, amber/red bars, savings + credit card tracker, 6-month chart, CSV export, milk log with calendar + milkman bill, demo data, reset, JSON backup/restore, PWA offline, light/dark.
 
-### 🐞 Known bugs / limits
-- In **Settings**, each card has its own Save button. If you edit two cards and press only one Save, the other card's unsaved edits are lost.
-- **Local mode data lives only in this browser.** Laptop data does **not** reach the phone by itself. Use Backup → Restore, or switch to Firebase.
-- If you make a **new email + password account**, you must click the verify link in your email before the data opens. Kozy shows a clear message if you don't. **Google sign-in avoids this step.**
-- In the full-page screenshots, the bottom tab bar appears in the middle of the image. That is how full-page screenshots draw fixed bars, not an app bug.
+### 🧪 What the tests prove
+| Test set | Result | Command |
+|---|---|---|
+| App: add/edit/undo, smart add, colours, bills, kitchen countdown, search + add, sabzi prices, shopping mode, milk, CSV, demo/summary/backup/reset, goals, **roles**, offline, **push → notification**, no sideways scroll, logic unit tests | ✅ 23/23 (×2 runs) | `npm test` |
+| Security rules (owner / wife / viewer / stranger / unverified look-alike) | ✅ 4/4 | `cd tests-rules && npm test` |
+| **Real app in Firebase mode** on emulators: two phones, live sync, rules block wife's setup writes and viewer's writes, stranger refused | ✅ 2/2 | `cd tests-rules && npm run test:app` |
+| Reminder job with demo data (morning + evening), and with no secret (does nothing) | ✅ printed the right messages | `node tools/reminders/send.mjs --demo --morning` |
+
+### ❌ Not done / not verified
+- 🔥 Your **real Firebase project**: not run yet (needs your config). The emulator tests cover the same code paths.
+- 📱 **Real iPhone**: Add to Home Screen, Google sign-in inside the home-screen app, Share → WhatsApp.
+- 🔔 **A real push arriving on a phone** through Firebase → Apple. The phone-side handler is tested; the delivery chain needs your keys.
+- 🤖 The **GitHub Actions reminder job on GitHub itself**: the repo isn't pushed yet.
+- Not built (no answer from you): weekly grocery view, year summary.
+
+### 🐞 Known limits
+- **Settings**: each section has its own Save. Editing two sections and saving only one loses the other's edits.
+- **Local mode** keeps data only in this browser. Use Backup → Restore to move it, or switch to Firebase.
+- A wife-created **email/password** account must click the verify link before data opens (Kozy shows a clear message). **Google sign-in avoids this.**
+- **iPhone push** works only when Kozy is opened from the **Home Screen icon** (iOS 16.4+). Apple's rule, not Kozy's.
+- If the repo has **no commits for 60 days**, GitHub pauses scheduled jobs. Re-enable it in one click in the Actions tab.
 
 ---
 
@@ -67,56 +71,59 @@ cd "C:\Users\Arti\Downloads\Claude\Kozy"
 ```bash
 npm start
 ```
-Then open 👉 **http://localhost:5173**
+Open 👉 **http://localhost:5173**
 
-To run the tests again (about 35 seconds):
+Handy URLs:
+- Pretend it's the 1st (bills due): http://localhost:5173/?today=2026-11-01
+- **See your wife's view**: http://localhost:5173/?role=member
+- **See a view-only user**: http://localhost:5173/?role=viewer
+
+(These are also buttons in Settings → Account.)
+
+Run the tests again:
 ```bash
 npm test
 ```
-
-Tip 🧪: add `?today=2026-11-01` to the URL to pretend it's the 1st and see the monthly bills card:
-http://localhost:5173/?today=2026-11-01
 
 ---
 
 ## 3. Your 5-minute test checklist ✅
 
-1. ⚙️ Settings → **Load demo data** → Load demo. Home now shows about ₹13,700 left (it changes a little with the date), the safe daily spend and the last 5 spends.
-2. ➕ Tap **+** → type `120` → tap **Groceries + veg** → **Add spend**. "Left this month" drops by ₹120.
-3. 💰 **Budget** tab: find an **amber** bar and a **red** bar (Home misc is over its limit in the demo). Tap one to filter. Tap **CSV** and open the file.
-4. 🧺 **Stock** tab: Besan / Poha show **Finished**, and a couple of items (tonight: Rice, Detergent) show **Running low**. Tap **Share** on the shopping list. Tap **Bought** on Besan → 1 kg, ₹95 → Save. Besan leaves the list and ₹95 appears in Groceries.
-5. 🥛 **Milk** tab: tap **Today's milk ✓**. Tap a past day → change litres → Save. Check the litres and ₹ total. Type the milkman's bill → **Add to Milk spend**.
-6. ✈️ Turn off Wi-Fi → reload the page → Kozy still opens.
-7. ⚙️ **Reset all data** when you're done testing, so you start clean.
+1. ⚙️ Settings → **🗂️ Data** → **Load demo data**. Home: money left, chips (🔁 bills · 🛒 to buy · 🥛 tick milk · 🪔 Diwali), Recent.
+2. ➕ Tap **+** and type **`pyaz 2kg 40/kg`** → preview → **Save purchase**. Then **`auto 80 cash`** → **Add spend**.
+3. 🧺 **Stock**: see the Running low / Finished groups and the countdowns. Search **`chawal`**. Search **`gud`** → **+ Add "Gud"** → Bought → 1 kg.
+4. 🥬 **Stock → Sabzi**: tap 🧅 Onion → price history with ▲▼ → **+ List**. Back on Kitchen, tap **Shop ✓** → tick 2 items → **Done**.
+5. 🔁 Home → tap **bills due** → **Paid** on one. Settings → **Bills** → open **Electricity** → amount, due date, ✅ Active → Save.
+6. 💰 **Budget** → **Summary** (who spent, vs last month, sabzi prices) → **Spends** → filter **Wife**.
+7. 👀 Settings → Account → **Wife's view**: she can add, but limits are greyed out and your spends are read-only. **Exit**.
+8. ↩️ Delete a spend → tap **Undo**.
 
 ---
 
 ## 4. Morning Firebase steps 🔥 (simple clicks)
 
-> First, **backup** any laptop test data you want to keep (Settings → Backup JSON).
+> First: Settings → 🗂️ Data → **Backup (JSON)** if you want to keep the laptop's test data.
 
-1. Open **https://console.firebase.google.com** → click project **kozy**.
-2. **Sign-in**: left menu **Build → Authentication → Get started** → tab **Sign-in method**:
-   - Click **Google** → toggle **Enable** → pick your support email → **Save**.
-   - Click **Add new provider → Email/Password** → toggle **Enable** → **Save**.
-3. **Database**: **Build → Firestore Database → Create database** → location **asia-south2 (Delhi)** → **Start in production mode** → **Create**.
-4. **Web app**: ⚙️ (top-left) **Project settings → General** → scroll to **Your apps** → click the **`</>`** (Web) icon → nickname `kozy-web` → leave Hosting **unticked** → **Register app**.
-   Copy the values inside `firebaseConfig = { ... }`.
-5. Paste those values into **`js/firebase-config.js`** (replace the `PASTE_...` lines; also check `projectId`).
-6. Open **`firestore.rules`** → replace `ME_EMAIL` and `WIFE_EMAIL` with your two Gmail addresses (keep the quotes).
-7. **Deploy the rules (no CLI needed)**: Firestore Database → tab **Rules** → delete everything → paste the whole `firestore.rules` file → **Publish**.
-8. Open **`js/config.js`**:
-   - `USE_FIREBASE = true`
-   - In `MEMBERS`, replace `'ME_EMAIL'` and `'WIFE_EMAIL'` with the same two emails (this sets the "Me" / "Wife" labels).
-9. `npm start` → http://localhost:5173 → **Continue with Google** → sign in.
-   Want your laptop data in the cloud? Settings → **Restore** → pick the backup JSON.
-10. Ask Claude: *"continue from CLAUDE.md — Firebase is on, test it"* if anything breaks.
+1. Open **https://console.firebase.google.com** → project **kozy**.
+2. **Sign-in**: **Build → Authentication → Get started → Sign-in method**
+   - **Google** → Enable → support email → Save
+   - **Add new provider → Email/Password** → Enable → Save
+3. **Database**: **Build → Firestore Database → Create database** → location **asia-south2 (Delhi)** → **production mode** → Create.
+4. **Web app**: ⚙️ **Project settings → General → Your apps → `</>`** → nickname `kozy-web` → Register.
+   Copy the `firebaseConfig` values into **`js/firebase-config.js`** (also check `projectId`; it may be like `kozy-1a2b3`).
+5. **Reminder key**: ⚙️ Project settings → **Cloud Messaging** tab → *Web configuration* → **Web Push certificates → Generate key pair** → copy it into `VAPID_KEY` in `js/firebase-config.js`.
+6. **Rules**: in **`firestore.rules`** replace `ME_EMAIL`, `WIFE_EMAIL` (and `VIEWER_EMAIL` if you have a viewer) with real Gmail addresses, keeping the quotes.
+   Then Firestore Database → **Rules** tab → delete everything → paste the whole file → **Publish**.
+7. **`js/config.js`**: set `USE_FIREBASE = true`, and put the same emails in `MEMBERS` (`'you@gmail.com': { label: 'Me', role: 'owner' }` …).
+8. `npm start` → **Continue with Google**. Optional: Settings → 🗂️ Data → **Restore** your backup.
+9. Stuck? Tell Claude: *"continue from CLAUDE.md — Firebase is on, test it"*.
 
 ---
 
-## 5. Later: GitHub Pages deploy 🚀 (repo `krrivats/kozy`)
+## 5. GitHub Pages + phone reminders 🚀 (repo `krrivats/kozy`)
 
-1. On **github.com** → **New repository** → name `kozy` → **Public** (free GitHub Pages needs public) → do **not** add a README → **Create**.
+**Put it online (free):**
+1. github.com → **New repository** → `kozy` → **Public** → don't add a README → Create.
 2. In this folder:
    ```bash
    git remote add origin https://github.com/krrivats/kozy.git
@@ -124,32 +131,32 @@ http://localhost:5173/?today=2026-11-01
    ```bash
    git push -u origin main
    ```
-3. Repo → **Settings → Pages** → Source: **Deploy from a branch** → Branch **main**, folder **/ (root)** → **Save**. Wait 1–2 minutes.
-4. Your app: 👉 **https://krrivats.github.io/kozy/**
-5. Firebase → **Authentication → Settings → Authorized domains → Add domain** → `krrivats.github.io`.
-6. On each iPhone: open the link in **Safari** → **Share** → **Add to Home Screen** → **Add**. 📱
-7. When you change code later, bump `VERSION` in `sw.js` so old cached files are cleaned up.
+3. Repo → **Settings → Pages** → *Deploy from a branch* → **main / (root)** → Save. After 1–2 minutes: 👉 **https://krrivats.github.io/kozy/**
+4. Firebase → **Authentication → Settings → Authorized domains → Add** `krrivats.github.io`.
+5. Each iPhone: open the link in **Safari → Share → Add to Home Screen**. Sign in from the **home-screen icon**.
 
-> The Firebase `apiKey` being public in the repo is normal. Your data is protected by `firestore.rules`, not by hiding the key.
+**Turn on phone reminders (free):**
+1. Firebase ⚙️ Project settings → **Service accounts → Generate new private key**. A `.json` file downloads. 🔒 Keep it secret; never commit it.
+2. GitHub repo → **Settings → Secrets and variables → Actions → New repository secret** → Name `FIREBASE_SERVICE_ACCOUNT`, Value = the **whole** JSON text → Add.
+3. On each phone (from the home-screen icon): Kozy → ⚙️ **Settings → 🔔 Reminders → Turn on phone reminders** → Allow.
+4. Test now: repo → **Actions → Kozy reminders → Run workflow**. A notification should arrive.
+   After that it runs by itself at **8:00 AM** (bills + items to buy) and **9:00 PM** (milk not ticked).
+
+> The Firebase `apiKey` being public is normal; `firestore.rules` protects the data. The **service-account JSON is different**: it lives only in GitHub Secrets.
 
 ---
 
 ## 6. Decisions I made on my own 🤔
-23 small choices, listed with reasons in 👉 [DECISIONS.md](DECISIONS.md).
-The big ones: the total budget = the sum of the category limits, items never bought show "Not tracked", monthly bills stay on Home until you tap Paid or skip, and the Firebase rules require a verified email.
-
----
+👉 [DECISIONS.md](DECISIONS.md) (#24–#50 are from tonight). The agreed list is 👉 [PHASE2_PLAN.md](PHASE2_PLAN.md).
+The big ones:
+- Free push through GitHub Actions, because Firebase's own scheduler needs a paid plan.
+- Sabzi lives inside the Stock tab.
+- Example bills start paused.
+- First purchase guesses 15 days, then Kozy learns.
+- Roles are enforced three times (screen, app, Firebase rules).
 
 ## 7. context-mode savings 💾
-From `ctx-stats` at the end of the build:
-- This session: **~1.4 MB of tool output kept out of context**, and only ~3.3 KB came in (**99.8% saved**, ~371K tokens).
-- Across all your projects so far: 411 KB kept out.
+`ctx-stats` near the end of tonight's build: **3.1 MB of tool output kept out of context**, only 17.8 KB came in. That's **99.4% saved**, about 800K tokens.
 
----
-
-## 📁 Where things are
-- App: `index.html`, `css/app.css`, `js/` (store + adapters, logic, views)
-- PWA: `manifest.webmanifest`, `sw.js`, `icons/`
-- Firebase: `js/firebase-config.js`, `firestore.rules`, `firebase.json`
-- Tests: `tests/` · Screenshots: `screenshots/`
-- Rules for future Claude sessions: `CLAUDE.md` · Plan: `PLAN.md`
+## 📸 Screenshots
+[`screenshots/`](screenshots/) has 32 images: every screen in light and dark, plus quick add, sabzi, shopping mode, bills, the wife's view and the viewer's view.

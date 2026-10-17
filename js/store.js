@@ -8,7 +8,7 @@
 //            (the price of a purchase lives in its linked spend entry)
 //   milk     milk days       {id:'YYYY-MM-DD', litres, rate, skip, by}
 //   meta     key/value docs  {id:key, value}
-import { USE_FIREBASE, LOCAL_USER } from './config.js';
+import { USE_FIREBASE, EMULATOR, LOCAL_USER } from './config.js';
 
 export const COLLECTIONS = ['entries', 'items', 'stock', 'milk', 'meta'];
 
@@ -33,7 +33,7 @@ function fill(data) {
 }
 
 export async function initStore() {
-  if (USE_FIREBASE) {
+  if (USE_FIREBASE || EMULATOR) {
     const { FirestoreAdapter } = await import('./adapters/firestore.js');
     adapter = new FirestoreAdapter();
   } else {

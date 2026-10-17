@@ -8,3 +8,7 @@ export const firebaseConfig = {
   messagingSenderId: 'PASTE_SENDER_ID',
   appId: 'PASTE_APP_ID',
 };
+
+// Phone reminders: Firebase console → Project settings → Cloud Messaging → Web Push certificates →
+// "Generate key pair" → copy the long "Key pair" string here.
+export const VAPID_KEY = 'PASTE_VAPID_KEY';

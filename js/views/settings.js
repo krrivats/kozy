@@ -13,7 +13,7 @@ import { openItemForm } from './stock.js';
 import { APP_VERSION, USE_FIREBASE } from '../config.js';
 
 const EMOJIS = ['🧾', '🎓', '💊', '🚗', '🎁', '👕', '🍽️', '📚', '🐄', '🛠️'];
-const openSections = new Set(['limits']);
+const openSections = new Set(); // all folded at first: short screen, open what you need
 
 function section(key, title, body, extra = '') {
   return `<details class="card fold" data-sec="${key}" ${openSections.has(key) ? 'open' : ''}>

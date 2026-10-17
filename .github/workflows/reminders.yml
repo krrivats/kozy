@@ -1,0 +1,29 @@
+# Kozy phone reminders — free on GitHub Actions.
+# 08:00 IST: bills due + items to buy · 21:00 IST: milk not ticked.
+# Does nothing until the FIREBASE_SERVICE_ACCOUNT secret is added (see MORNING_REPORT.md).
+name: Kozy reminders
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 02:30 UTC = 08:00 IST
+    - cron: '30 15 * * *'  # 15:30 UTC = 21:00 IST
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: 'morning or evening'
+        default: 'morning'
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --prefix tools/reminders --no-audit --no-fund
+      - run: node tools/reminders/send.mjs
+        env:
+          TZ: Asia/Kolkata
+          SLOT: ${{ github.event.inputs.slot || (github.event.schedule == '30 15 * * *' && 'evening' || 'morning') }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}

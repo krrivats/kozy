@@ -1,10 +1,13 @@
 // FirestoreAdapter — same interface as LocalAdapter, but data lives in Firestore so both phones share it.
-// Layout: households/{HOUSEHOLD_ID}            (the ONE shared household document)
-//         households/{HOUSEHOLD_ID}/{col}/{id} (entries, items, stock, milk, meta)
+// Layout: households/{HOUSEHOLD_ID}              (the ONE shared household document)
+//         households/{HOUSEHOLD_ID}/{col}/{id}   (entries, items, stock, milk, meta)
+//         households/{HOUSEHOLD_ID}/devices/{id} (phones that turned on reminders)
 // Firebase SDK comes from the official CDN (modular build) — no npm, no build step.
 // OFF until config.js says USE_FIREBASE = true.
-import { firebaseConfig } from '../firebase-config.js';
-import { HOUSEHOLD_ID, MEMBERS } from '../config.js';
+import { firebaseConfig, VAPID_KEY } from '../firebase-config.js';
+import { HOUSEHOLD_ID, MEMBERS as REAL_MEMBERS, EMULATOR, EMULATOR_MEMBERS } from '../config.js';
+
+const MEMBERS = EMULATOR ? EMULATOR_MEMBERS : REAL_MEMBERS;
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 const COLLECTIONS = ['entries', 'items', 'stock', 'milk', 'meta'];
@@ -28,12 +31,15 @@ export class FirestoreAdapter {
     ]);
     this.A = authMod;
     this.F = fsMod;
-    const app = appMod.initializeApp(firebaseConfig);
+    const app = appMod.initializeApp(EMULATOR ? { apiKey: 'demo-key', projectId: 'demo-kozy', authDomain: 'localhost' } : firebaseConfig);
+    this.app = app;
     this.auth = authMod.getAuth(app);
+    if (EMULATOR) authMod.connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
     await authMod.setPersistence(this.auth, authMod.browserLocalPersistence);
-    this.db = fsMod.initializeFirestore(app, {
+    this.db = fsMod.initializeFirestore(app, EMULATOR ? {} : {
       localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() }),
     });
+    if (EMULATOR) fsMod.connectFirestoreEmulator(this.db, '127.0.0.1', 8085);
     // Finish a Google redirect sign-in if we are coming back from one.
     try { await authMod.getRedirectResult(this.auth); } catch (e) { console.warn('redirect result', e); }
     this.user = await new Promise((resolve) => {
@@ -44,7 +50,9 @@ export class FirestoreAdapter {
   isSignedIn() { return !!this.user; }
 
   #member() {
-    return MEMBERS[this.user?.email || ''] || null;
+    const email = (this.user?.email || '').toLowerCase();
+    const key = Object.keys(MEMBERS).find((k) => k.toLowerCase() === email);
+    return key ? MEMBERS[key] : null;
   }
 
   userLabel() {
@@ -88,6 +96,26 @@ export class FirestoreAdapter {
     this.unsubs = [];
     await this.A.signOut(this.auth);
     this.user = null;
+  }
+
+  // Phone reminders: ask permission, get this phone's push token, save it for the daily reminder job.
+  async enablePush() {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      throw new Error('This browser can’t show reminders. On iPhone: add Kozy to the Home Screen and open it from there.');
+    }
+    if (!VAPID_KEY || VAPID_KEY.startsWith('PASTE')) throw new Error('Add VAPID_KEY in firebase-config.js first (see MORNING_REPORT.md).');
+    const M = await import(`${SDK}/firebase-messaging.js`);
+    if (!(await M.isSupported())) throw new Error('Reminders are not supported here. On iPhone: open Kozy from the Home Screen icon (iOS 16.4 or newer).');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('Notifications were not allowed. Turn them on in phone Settings → Kozy.');
+    const reg = await navigator.serviceWorker.ready;
+    const token = await M.getToken(M.getMessaging(this.app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
+    const id = [...new Uint8Array(hash)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+    await this.F.setDoc(this.F.doc(this.db, 'households', HOUSEHOLD_ID, 'devices', id), {
+      token, email: this.userEmail(), label: this.userLabel(), ua: navigator.userAgent.slice(0, 120), createdAt: Date.now(),
+    });
+    return true;
   }
 
   #colRef(col) {

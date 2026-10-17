@@ -1,0 +1,9 @@
+{
+  "name": "kozy-reminders",
+  "private": true,
+  "type": "module",
+  "description": "Daily reminder job for Kozy (runs on GitHub Actions)",
+  "dependencies": {
+    "firebase-admin": "12.7.0"
+  }
+}

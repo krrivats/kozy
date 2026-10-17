@@ -3,6 +3,8 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
+  // firebase-app.spec.js needs the Firebase emulators: run it from tests-rules/ with `npm run test:app`.
+  testIgnore: process.env.FIRESTORE_EMULATOR_HOST ? [] : ['**/firebase-app.spec.js'],
   timeout: 30000,
   fullyParallel: false,
   workers: 1,

@@ -3,6 +3,14 @@
 // USE_FIREBASE = true  → data syncs through Firestore (paste real values in firebase-config.js first).
 export const USE_FIREBASE = false;
 
+// Testing only: ?emulator=1 runs Firebase mode against the local Firebase emulators (tests-rules/).
+export const EMULATOR = typeof location !== 'undefined' && new URLSearchParams(location.search).has('emulator');
+export const EMULATOR_MEMBERS = {
+  'me@test.com': { label: 'Me', role: 'owner' },
+  'wife@test.com': { label: 'Wife', role: 'member' },
+  'papa@test.com': { label: 'Papa', role: 'viewer' },
+};
+
 // One shared household document in Firestore: households/{HOUSEHOLD_ID}
 export const HOUSEHOLD_ID = 'kozy-home';
 

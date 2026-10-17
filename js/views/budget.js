@@ -44,8 +44,8 @@ function catsView(s) {
       const spent = s.by[c.id] || 0;
       const lvl = budget.level(spent, c.limit);
       return `<button class="ctile" data-act="filter" data-cat="${c.id}" data-level="${lvl}">
-        <span class="ctile-top"><span class="ctile-emo">${c.emoji}</span><span class="ctile-name">${esc(c.name)}</span>
-          <span class="num ${lvl}"><b>${money(spent)}</b><span class="muted">/${c.limit ? moneyShort(c.limit) : '—'}</span></span></span>
+        <span class="ctile-top"><span class="ctile-emo">${c.emoji}</span><span class="ctile-name">${esc(c.name)}</span></span>
+        <span class="num ${lvl}"><b>${money(spent)}</b><span class="muted"> / ${c.limit ? moneyShort(c.limit) : 'no limit'}</span></span>
         ${bar(spent, c.limit, lvl)}
       </button>`;
     }).join('')}

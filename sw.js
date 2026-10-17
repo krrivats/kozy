@@ -79,3 +79,39 @@ self.addEventListener('fetch', (event) => {
     }
   })());
 });
+
+// Phone reminders (sent by tools/reminders/send.mjs through Firebase Cloud Messaging as data messages).
+self.addEventListener('push', (event) => {
+  let p = {};
+  try { p = event.data ? event.data.json() : {}; } catch { p = { data: { body: event.data?.text() || '' } }; }
+  const d = { ...(p.notification || {}), ...(p.data || {}) };
+  const title = d.title || 'Kozy';
+  event.waitUntil((async () => {
+    try {
+      await self.registration.showNotification(title, {
+        body: d.body || '',
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        tag: d.tag || 'kozy',
+        data: { url: d.url || '#/home' },
+      });
+    } catch (e) { console.warn('Kozy: could not show notification', e); }
+    // If Kozy is open, also tell the page (it shows a toast).
+    for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) c.postMessage({ type: 'kozy-push', title, body: d.body || '' });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  event.waitUntil((async () => {
+    const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const w of wins) {
+      if ('focus' in w) {
+        try { await w.navigate(url); } catch { /* cross-origin or not allowed */ }
+        return w.focus();
+      }
+    }
+    return self.clients.openWindow(url);
+  })());
+});

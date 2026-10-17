@@ -1,0 +1,17 @@
+{
+  "name": "kozy-rules-tests",
+  "private": true,
+  "type": "module",
+  "description": "Tests firestore.rules and the app in Firebase mode against the local Firebase emulators (needs Java 11+).",
+  "scripts": {
+    "pretest": "node make-rules.mjs",
+    "test": "firebase emulators:exec --only firestore --project demo-kozy \"node --test --test-reporter=spec rules.test.mjs\"",
+    "pretest:app": "node make-rules.mjs",
+    "test:app": "firebase emulators:exec --only auth,firestore --project demo-kozy \"npx playwright test --config ../playwright.config.js firebase-app\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "3.0.4",
+    "firebase": "10.12.2",
+    "firebase-tools": "13.35.1"
+  }
+}

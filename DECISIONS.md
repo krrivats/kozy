@@ -27,3 +27,40 @@ These are things your brief didn't spell out. In each case I picked the simplest
 | 21 | **Settings tab icon is the ⚙️ emoji**; the other tabs use line icons. | You asked for ⚙️ specifically. |
 | 22 | **System font** (SF Pro on iPhone), not a web font. | It is fast and works offline. It also shows Hindi well on iPhone. |
 | 23 | **Light/dark follows the phone's setting** (no toggle). | Your brief said "follow system". |
+
+---
+
+## v1.1 (night of 17–18 Oct) — choices made while building what we agreed
+
+The agreed list is in [PHASE2_PLAN.md](PHASE2_PLAN.md). These are the extra calls I made.
+Some replace v1 decisions above (marked ♻️).
+
+| # | Decision | Why |
+|---|---|---|
+| 24 | ♻️ **Monthly "recurring" became "Bills"** that can repeat monthly / every 2 months / quarterly / every 6 months / yearly / every N days. Each bill has a next-due date and a reminder window (e.g. LIC: 15 days before). Your old 3 monthly bills move over by themselves. | You asked for yearly / quarterly bills too. One system is simpler than two. |
+| 25 | The new example bills (Electricity 2-monthly, Mobile recharge every 84 days, LIC, Vehicle insurance, School fees, Property tax) start **Paused**. You switch one on in Settings → Bills by giving it an amount and a due date. | Real amounts and dates are yours to fill in. Paused examples never nag. |
+| 26 | New category **"Other bills" 🧾 with limit 0 = no monthly limit.** It shows grey, never red. | Yearly bills would make any monthly limit look "over". |
+| 27 | **Roles**: Owner = you (everything), Member = wife (adds spends/stock/sabzi/milk, marks bills paid, can change/delete **only her own** spends), Viewer = view only. Only the owner changes limits, bills, goals, milk rate, card due, restore and reset. | "Option B" from our chat, plus the view-only users you mentioned. |
+| 28 | Roles are enforced **three times**: buttons hidden on screen, the data layer refuses (`ReadOnlyError`), and `firestore.rules` refuses on Google's side. | Hiding buttons alone is not security. |
+| 29 | ♻️ A purchase's **price lives only in its spend entry** (not on the stock record). Old data is moved automatically on start. | One source of truth: deleting a spend can't leave a wrong price on stock. |
+| 30 | **Sabzi lives inside the Stock tab** (Kitchen / Sabzi switch). The bottom bar stays at 5 tabs. 31 vegetables and fruits are pre-loaded with emojis and Hinglish search words (pyaz, aloo, tamatar…). | Six tabs would be cramped on an iPhone. You said "a separate tab inside of it". |
+| 31 | Sabzi has **no "Finished" button and no countdown**, only price history and a "+ List" toggle for the shopping list. | Vegetables are bought every few days; a run-out countdown would be noise. Price per kg was the ask. |
+| 32 | Sabzi price entry defaults to **₹ per kg** with a "Total" switch. The trend arrow compares with the **previous purchase**; anything under 2% counts as "same". | That's how prices are said at the mandi ("pyaz ₹40 kilo"). |
+| 33 | **First purchase of a kitchen item** pre-selects "Lasts about 15 days". After one Finished, "Auto" (learned from history) is selected. Your typed estimate always beats history. | A countdown should appear from day 1, and you stay in control. |
+| 34 | **Low-stock warning** defaults to 7 days per item, changeable per item (2–14 days). Demo: salt warns at 3 days. | You asked for per-item warning days. |
+| 35 | **Kitchen list is grouped**: Running low → Finished → In stock → Not tracked. "In stock" and "Not tracked" **fold away only when something needs attention**; on a fresh install everything is open. | Less scrolling, but a new user isn't faced with a closed box. |
+| 36 | **Shopping mode** buys the ticked items with their last quantity (editable) and an optional total price each. | "Tick many, one Done" with the fewest taps. |
+| 37 | **"+ Add 'xyz'"** shows whenever you type in the search box, even when there are matches. After saving the new item, Kozy opens its Bought form straight away. | You said "search, note it down, and if it's not there, add it". |
+| 38 | **Smart quick add** understands: `item qty+unit price` (`atta 10kg 420`), `₹/unit` (`onion 5kg 50/kg`, `@40`), plain spends with a keyword (`sabzi 250`, `auto 80 cash`, `plumber 1200`). Item words win over category words; "sabzi"/"veg" mean a Groceries spend, not an item. | Covers the common ways people type, with no AI service needed (free, works offline). |
+| 39 | **Undo** (5 seconds) on: delete spend, delete purchase, Finished, today's milk tick. | The actions that are easy to tap by mistake. |
+| 40 | **English everywhere except item names** (Atta आटा). The Hindi on the Bought/Finished buttons was removed. | You asked: only items bilingual. |
+| 41 | **Home has no scrolling**: money card, "Needs you" chips (bills due · items to buy · tick milk · goals), top 3 spends, last 4 activities. Full activity is under "See all". | "Compact, easy to see". |
+| 42 | **Budget has 3 views** (Categories · Spends · Summary) instead of one long page. The Summary is the monthly summary: vs last month, who spent, sabzi price movers, biggest spends, milk. | Less scrolling; the summary is built in, not sent. |
+| 43 | **Goals** count money added to a chosen category **from the goal's start date** (e.g. Diwali goal = Festival fund spends since you created it). | No separate "add to goal" step to forget. |
+| 44 | **Settings sections start folded.** | Shortest screen; you open the one you need. |
+| 45 | **Reminders**: in-app "Needs you" chips always; phone push via Firebase Cloud Messaging, **sent by a free GitHub Actions job** at 08:00 IST (bills + items to buy) and 21:00 IST (milk not ticked). | Firebase's own scheduler (Cloud Functions) needs the paid Blaze plan; you wanted everything free. |
+| 46 | The reminder job uses **the same reminder code as the app** (`js/logic/reminders.js`), and does nothing until its secret is added. | No mismatch between what the app shows and what the phone gets; safe to push to GitHub before setup. |
+| 47 | Viewers may also turn on phone reminders. | Harmless; they can already see everything. |
+| 48 | **Sync dot** (Firebase mode only): green = saved, amber pulsing = saving or offline. | Shows at a glance whether your wife's phone has your entry yet. |
+| 49 | **`?emulator=1`** runs the app against local Firebase emulators (testing only). It can't touch real data. | That's how Firebase mode was tested tonight, before your real config exists. |
+| 50 | Weekly grocery view and year summary were **not built** (no answer either way). | Easy to add later if you want them. |

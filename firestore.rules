@@ -1,24 +1,55 @@
 rules_version = '2';
 
-// Kozy: only these TWO family emails can read or write anything.
-// Replace ME_EMAIL and WIFE_EMAIL with the real addresses (keep the quotes), then deploy.
+// Kozy — who can do what (keep the emails in sync with MEMBERS in js/config.js):
+//   OWNER  (ME_EMAIL)        everything; the only one who changes setup (limits, bills, goals, milk rate, reset)
+//   MEMBER (WIFE_EMAIL)      sees everything; adds spends, stock, sabzi, milk; changes/deletes only her own spends
+//   VIEWER (VIEWER_EMAIL...) sees everything; changes nothing
+// Replace the placeholder emails (keep the quotes), then publish in Firebase console → Firestore → Rules.
 // email_verified stops someone making an email/password account with your address without owning it.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isFamily() {
-      return request.auth != null
-        && request.auth.token.email_verified == true
-        && request.auth.token.email in ['ME_EMAIL', 'WIFE_EMAIL'];
+    function email() { return request.auth.token.email; }
+    function verified() { return request.auth != null && request.auth.token.email_verified == true; }
+    function isOwner() { return verified() && email() == 'ME_EMAIL'; }
+    function isMember() { return verified() && email() in ['WIFE_EMAIL']; }
+    function isViewer() { return verified() && email() in ['VIEWER_EMAIL']; }
+    function canRead() { return isOwner() || isMember() || isViewer(); }
+    function canAdd() { return isOwner() || isMember(); }
+    // meta keys that only the owner may change
+    function isSetupKey(key) {
+      return key in ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo'];
     }
 
-    // The ONE shared household document, and everything under it
-    // (entries, items, stock, milk, meta).
+    // The ONE shared household document
     match /households/{householdId} {
-      allow read, write: if isFamily();
+      allow read: if canRead();
+      allow write: if isOwner();
 
-      match /{document=**} {
-        allow read, write: if isFamily();
+      // Spends: members add with their own email, and may change/delete only their own
+      match /entries/{id} {
+        allow read: if canRead();
+        allow create: if isOwner() || (isMember() && request.resource.data.byEmail == email());
+        allow update: if isOwner() || (isMember() && resource.data.byEmail == email() && request.resource.data.byEmail == email());
+        allow delete: if isOwner() || (isMember() && resource.data.byEmail == email());
+      }
+
+      // Kitchen items, sabzi, purchases, milk days: the whole family keeps these up to date
+      match /items/{id} { allow read: if canRead(); allow write: if canAdd(); }
+      match /stock/{id} { allow read: if canRead(); allow write: if canAdd(); }
+      match /milk/{id}  { allow read: if canRead(); allow write: if canAdd(); }
+
+      // Settings: setup keys owner-only; bill paid-state / milk bill link members may write
+      match /meta/{key} {
+        allow read: if canRead();
+        allow write: if isOwner() || (isMember() && !isSetupKey(key));
+      }
+
+      // Phones registered for reminders (read only by the owner and the reminder job)
+      match /devices/{id} {
+        allow read: if isOwner();
+        allow create, update: if canRead() && request.resource.data.email == email();
+        allow delete: if isOwner() || (canRead() && resource.data.email == email());
       }
     }
 

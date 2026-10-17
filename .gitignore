@@ -2,3 +2,9 @@ node_modules/
 test-results/
 playwright-report/
 .DS_Store
+
+# Firebase emulator logs
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+tests-rules/rules.emulator.rules

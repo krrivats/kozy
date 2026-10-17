@@ -285,12 +285,16 @@ test('shopping list: copy, share, shopping mode ticks several items at once', as
   await fresh(page, T, 'stock');
   for (const id of ['item-poha', 'item-salt', 'item-sugar']) {
     await page.locator('[data-search]').fill(id.replace('item-', ''));
+    await expect(page.locator('[data-test="add-new"]')).toContainText(id.replace('item-', ''));
+    await expect(page.locator('.irow')).toHaveCount(1);
     await row(page, id).locator('[data-act="bought"]').click();
     await page.locator('.sheet input[name="qty"]').fill('1');
     await page.locator('.sheet button[type="submit"]').click();
     await row(page, id).locator('[data-act="finished"]').click();
+    await expect(row(page, id)).toHaveAttribute('data-status', 'finished');
   }
   await page.locator('[data-search]').fill('');
+  await expect(page.locator('[data-test="add-new"]')).toHaveCount(0);
   await expect(page.locator('[data-test="shopping"] .pill')).toHaveCount(3);
   await page.locator('[data-test="shopping"] [data-act="copy"]').click();
   await expect(page.locator('#toast')).toContainText('copied');
@@ -409,6 +413,7 @@ test('demo data: summary, who spent, goals, activity; backup, reset, restore', a
 
 test('settings: change a limit, add a goal', async ({ page }) => {
   await fresh(page, T, 'settings');
+  await openSec(page, 'limits');
   const r = page.locator('.limit-row', { has: page.locator('input[value="Buffer"]') });
   await r.locator('input[name="limit"]').fill('1900');
   await page.locator('[data-form="cats"] button[type="submit"]').click();
@@ -497,4 +502,17 @@ test('works offline after first visit (service worker)', async ({ page, context 
   await go(page, T, 'stock');
   await expect(page.locator('.irow')).toHaveCount(17);
   await context.setOffline(false);
+});
+
+test('no screen is wider than the phone (no sideways scrolling)', async ({ page }) => {
+  await fresh(page, T, 'settings');
+  await loadDemo(page);
+  for (const [r, extra] of [['home'], ['budget'], ['budget', 'spends'], ['budget', 'summary'], ['stock'], ['stock', 'veg'], ['milk'], ['settings']]) {
+    await go(page, T, r);
+    if (extra === 'veg') await page.locator('[data-tab="veg"]').click();
+    else if (extra) await page.locator(`[data-view="${extra}"]`).click();
+    if (r === 'settings') for (const k of ['limits', 'bills', 'goals', 'money', 'items', 'remind', 'data', 'account']) await openSec(page, k);
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(wide, `${r} ${extra || ''}`).toBeLessThanOrEqual(0);
+  }
 });
