@@ -23,6 +23,12 @@ const P = {
   upload: '<path d="M12 21V9"/><path d="m7 14 5-5 5 5"/><path d="M5 3h14"/>',
   minus: '<path d="M5 12h14"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+  up: '<path d="m6 15 6-6 6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  note: '<path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/>',
 };
 
 export function icon(name, cls = '') {
@@ -95,13 +101,31 @@ export function confirmSheet({ title, body = '', ok = 'Yes', danger = false }) {
 
 // ---------- Toast ----------
 let toastTimer;
-export function toast(msg, kind = '') {
+// toast('Saved') · toast('Oops', 'err') · toast('Deleted', { undo: async () => {...} }) → shows Undo for 5 s
+export function toast(msg, opts = '') {
+  const o = typeof opts === 'string' ? { kind: opts } : opts;
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast show ${kind}`;
+  el.replaceChildren(document.createTextNode(msg));
+  if (o.undo) {
+    const b = document.createElement('button');
+    b.className = 'toast-undo';
+    b.textContent = 'Undo';
+    b.onclick = async () => {
+      clearTimeout(toastTimer);
+      el.className = 'toast';
+      try { await o.undo(); toast('Undone ✓'); } catch (e) { toast(e.message, 'err'); }
+    };
+    el.appendChild(b);
+  }
+  el.className = `toast show ${o.kind || ''} ${o.undo ? 'has-undo' : ''}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = 'toast'; }, 2200);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, o.undo ? 5000 : 2200);
 }
+
+// A blocked write (view-only user, or a member touching setup) shows a friendly message instead of failing silently.
+window.addEventListener('unhandledrejection', (e) => {
+  if (e.reason?.name === 'ReadOnlyError') { e.preventDefault(); toast(e.reason.message, 'err'); }
+});
 
 export function bump(el) {
   if (!el) return;
@@ -147,6 +171,6 @@ export async function shareText(title, text) {
 }
 
 export function bar(spent, limit, lvl) {
-  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : (spent > 0 ? 100 : 0);
+  const pct = limit > 0 ? Math.min(100, (spent / limit) * 100) : 0;
   return `<div class="bar ${lvl}" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct.toFixed(1)}%"></span></div>`;
 }

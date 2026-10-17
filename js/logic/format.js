@@ -7,6 +7,14 @@ export function money(n) {
   return inr.format(Math.round(Number(n) || 0));
 }
 
+// ₹8k, ₹1.5k, ₹900 — for tight spaces
+export function moneyShort(n) {
+  n = Math.round(Number(n) || 0);
+  if (Math.abs(n) < 1000) return `₹${n}`;
+  const k = n / 1000;
+  return `₹${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+}
+
 export function number(n) {
   return num.format(Number(n) || 0);
 }
@@ -76,6 +84,20 @@ export function relDay(s) {
   if (s === t) return 'Today';
   if (s === addDays(t, -1)) return 'Yesterday';
   return weekdayFmt.format(parse(s));
+}
+
+// "just now", "12 min ago", "3 h ago", "Yesterday", "14 Oct"
+export function ago(ts) {
+  if (!ts) return '';
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  if (mins < 24 * 60 && iso(new Date(ts)) === iso(new Date())) return `${Math.round(mins / 60)} h ago`;
+  return relDay(iso(new Date(ts)));
+}
+
+export function pct(x) {
+  return `${x > 0 ? '+' : ''}${Math.round(x * 100)}%`;
 }
 
 export function esc(s) {

@@ -1,6 +1,6 @@
 // LocalAdapter — keeps everything in this browser's localStorage (one JSON blob).
 // Data is small (a few thousand rows a year), so saving the whole blob on each write is fine.
-import { LOCAL_USER } from '../config.js';
+import { LOCAL_USER, LOCAL_PREVIEW_USERS } from '../config.js';
 
 const KEY = 'kozy.data.v1';
 
@@ -10,9 +10,17 @@ export class LocalAdapter {
 
   async init() {
     this.data = this.#read();
+    // ?role=member / ?role=viewer previews the other views on this laptop.
+    const preview = LOCAL_PREVIEW_USERS[new URLSearchParams(location.search).get('role')] || null;
+    this.user = preview || LOCAL_USER;
+    this.preview = !!preview;
   }
 
-  userLabel() { return LOCAL_USER; }
+  userLabel() { return this.user.label; }
+
+  role() { return this.user.role; }
+
+  userEmail() { return ''; }
 
   async load() {
     return this.data;

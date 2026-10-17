@@ -29,6 +29,7 @@ export function render() {
   const m = milk.month(state.mk);
   const isCur = state.mk === monthKey(t);
   const billed = m.billed ? store.get('entries', m.billed) : null;
+  const w = store.canWrite();
 
   const first = parse(`${state.mk}-01`).getDay(); // 0 = Sunday
   const lead = (first + 6) % 7; // Monday first
@@ -39,14 +40,14 @@ export function render() {
     const future = date > t;
     const cls = d ? (d.skip ? 'skip' : 'got') : (future ? 'future' : 'none');
     const val = d ? (d.skip ? 'skip' : `${number(d.litres)}L`) : '';
-    cells.push(`<button class="cal-cell ${cls} ${date === t ? 'today' : ''}" data-day="${date}" ${future ? 'disabled' : ''} aria-label="${dayLabel(date)} ${val}">
+    cells.push(`<button class="cal-cell ${cls} ${date === t ? 'today' : ''}" data-day="${date}" ${future || !w ? 'disabled' : ''} aria-label="${dayLabel(date)} ${val}">
       <span class="d">${n}</span><span class="l">${val}</span></button>`);
   }
 
   return `
   ${header('Milk log', `${number(s.litres)} L/day · ${money(s.rate)}/L`)}
 
-  ${!s.asked ? `
+  ${!s.asked && store.isOwner() ? `
   <section class="card setup" data-test="milk-setup">
     <h2>🥛 Set your daily milk</h2>
     <p class="muted small">How much milk comes every day, and the rate per litre?</p>
@@ -61,13 +62,13 @@ export function render() {
     ${td ? `
       <div class="row between">
         <div><p class="label">Today</p><p class="big2">${td.skip ? 'Skipped' : `✓ ${number(td.litres)} L`}</p></div>
-        <button class="btn ghost small" data-act="edit-day" data-day="${t}">${icon('edit')} Change</button>
+        ${w ? `<button class="btn ghost small" data-act="edit-day" data-day="${t}">${icon('edit')} Change</button>` : ''}
       </div>` : `
-      <button class="btn primary huge" data-act="tick">Today's milk ✓ <span class="muted-ink">${number(s.litres)} L</span></button>
-      <div class="row gap">
-        <button class="btn ghost grow" data-act="edit-day" data-day="${t}">Different amount</button>
-        <button class="btn ghost grow" data-act="skip-today">Skip today</button>
-      </div>`}
+      ${w ? `<div class="row gap">
+        <button class="btn primary grow tick" data-act="tick">Today's milk ✓ <span class="muted-ink">${number(s.litres)} L</span></button>
+        <button class="btn ghost" data-act="edit-day" data-day="${t}" aria-label="Different amount">${icon('edit')}</button>
+        <button class="btn ghost" data-act="skip-today">Skip</button>
+      </div>` : '<p class="muted">Today: not logged yet</p>'}`}
   </section>
 
   ${monthSwitch(state.mk)}
@@ -88,11 +89,11 @@ export function render() {
   <section class="card">
     <h2>🧾 Milkman's bill · ${monthName(state.mk)}</h2>
     <p class="muted small">${billed ? `Added to Milk spend: <b>${money(billed.amount)}</b>.` : 'Compare his bill with Kozy’s total, then add it to your Milk spend.'}</p>
-    <form class="row gap align-end" data-form="bill">
+    ${w ? `<form class="row gap align-end" data-form="bill">
       <label class="field grow"><span>Bill amount ₹</span><input name="amount" class="input" type="number" min="0" inputmode="decimal" value="${billed ? billed.amount : m.amount}"></label>
       <button class="btn primary" type="submit" data-test="add-bill">${billed ? 'Update' : 'Add to Milk spend'}</button>
     </form>
-    <p class="muted tiny" data-bill-diff></p>
+    <p class="muted tiny" data-bill-diff></p>` : ''}
   </section>`;
 }
 
@@ -126,7 +127,7 @@ export function bind(root, rerender) {
     const t = ev.target.closest('[data-act],[data-day]');
     if (!t) return;
     const act = t.dataset.act;
-    if (act === 'tick') { bump(t); await milk.tickToday(); toast(`Milk ${number(milk.settings().litres)} L logged ✓`); }
+    if (act === 'tick') { bump(t); await milk.tickToday(); toast(`Milk ${number(milk.settings().litres)} L logged ✓`, { undo: () => milk.clearDay(today()) }); }
     else if (act === 'skip-today') { await milk.skipDay(today()); toast('Skipped today'); }
     else if (act === 'month-prev') { state.mk = shiftMonth(state.mk, -1); rerender(); }
     else if (act === 'month-next') { state.mk = shiftMonth(state.mk, 1); rerender(); }

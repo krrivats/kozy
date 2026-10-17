@@ -43,10 +43,16 @@ export class FirestoreAdapter {
 
   isSignedIn() { return !!this.user; }
 
-  userLabel() {
-    const email = this.user?.email || '';
-    return MEMBERS[email] || this.user?.displayName?.split(' ')[0] || email || 'Me';
+  #member() {
+    return MEMBERS[this.user?.email || ''] || null;
   }
+
+  userLabel() {
+    return this.#member()?.label || this.user?.displayName?.split(' ')[0] || this.user?.email || 'Me';
+  }
+
+  // Unknown emails get no role: the app shows "not allowed" and the rules block them anyway.
+  role() { return this.#member()?.role || null; }
 
   userEmail() { return this.user?.email || ''; }
 
@@ -93,13 +99,15 @@ export class FirestoreAdapter {
   }
 
   // Loads every collection and keeps listening. onRemote(col, docs) fires on later changes.
-  async load(onRemote) {
+  async load(onRemote, cols = COLLECTIONS) {
     const F = this.F;
-    await F.setDoc(F.doc(this.db, 'households', HOUSEHOLD_ID),
-      { name: 'Kozy home', lastSeenBy: this.userEmail(), lastSeenAt: Date.now() }, { merge: true });
+    if (this.role() === 'owner') {
+      await F.setDoc(F.doc(this.db, 'households', HOUSEHOLD_ID),
+        { name: 'Kozy home', lastSeenAt: Date.now() }, { merge: true });
+    }
 
     const data = {};
-    await Promise.all(COLLECTIONS.map((col) => new Promise((resolve, reject) => {
+    await Promise.all(cols.map((col) => new Promise((resolve, reject) => {
       let first = true;
       const unsub = F.onSnapshot(this.#colRef(col), (snap) => {
         const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));

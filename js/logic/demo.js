@@ -2,8 +2,8 @@
 // so every screen has something to show. Replaces all current data.
 import * as store from '../store.js';
 import { today, addDays, monthKey, shiftMonth, daysInMonth, pad, parse } from './format.js';
-import { DEFAULT_CATS, DEFAULT_RECURRING, DEFAULT_CC_START } from './budget.js';
-import { DEFAULT_ITEMS } from './stock.js';
+import { DEFAULT_CATS, DEFAULT_BILLS, DEFAULT_CC_START } from './budget.js';
+import { DEFAULT_ITEMS, DEFAULT_VEG } from './stock.js';
 import { DEFAULT_MILK } from './milk.js';
 
 function rng(seed) {
@@ -24,6 +24,9 @@ const PACKS = {
 };
 // These are left "finished" (not bought again) so the shopping list has something in it.
 const LEAVE_FINISHED = ['poha', 'besan'];
+// Sabzi: [veg id, usual qty, usual ₹ per unit]
+const VEG = [['onion', 2, 40], ['potato', 3, 25], ['tomato', 2, 35], ['chilli', 0.25, 80], ['coriander', 1, 10],
+  ['cauliflower', 1, 40], ['okra', 1, 50], ['spinach', 1, 30], ['lauki', 1, 30], ['banana', 1, 60], ['apple', 1, 140], ['peas', 1, 80]];
 
 export function buildDemo(t = today()) {
   const r = rng(20261017);
@@ -45,27 +48,45 @@ export function buildDemo(t = today()) {
   const mkNow = monthKey(t);
   const months = [shiftMonth(mkNow, -2), shiftMonth(mkNow, -1), mkNow];
   const start = `${months[0]}-01`;
-  const recurringDone = {};
+  const billState = {};
   const milkBilled = {};
+  const vegById = Object.fromEntries(DEFAULT_VEG.map((v) => [v.id.replace('veg-', ''), v]));
+  const buyVeg = (date, key, qtyBase, rateBase) => {
+    const v = vegById[key];
+    const qty = qtyBase * pick([1, 1, 1.5, 2]);
+    const rate = Math.round(rateBase * (0.8 + r() * 0.5));
+    const price = Math.max(5, Math.round(rate * qty));
+    const e = entry(date, 'grocery', price, `${v.emoji} ${v.en} / ${v.hi} ${qty} ${v.unit} @ ₹${Math.round(price / qty)}/${v.unit}`, pick(['UPI', 'Cash']), { source: 'stock' });
+    stock.push({ id: id('s'), itemId: v.id, type: 'bought', date, qty, unit: v.unit, entryId: e.id, by: e.by, createdAt: e.createdAt, updatedAt: e.createdAt });
+  };
 
   for (const mk of months) {
     const last = mk === mkNow ? Number(t.slice(8, 10)) : daysInMonth(mk);
     const d = (day) => `${mk}-${pad(day)}`;
     const has = (day) => day <= last;
 
-    // Recurring bills
-    if (has(1)) entry(d(1), 'solar', 5000, 'Solar EMI', 'UPI', { source: 'recurring', ref: 'r-solar' });
-    if (has(2)) entry(d(2), 'wifi', 1500, 'WiFi + mobile + OTT', 'UPI', { source: 'recurring', ref: 'r-wifi' });
-    if (has(9)) entry(d(9), 'gas', 1100, 'Gas cylinder', 'Cash', { source: 'recurring', ref: 'r-gas' });
-    recurringDone[mk] = ['r-solar', 'r-wifi', ...(has(9) ? ['r-gas'] : [])];
+    // Monthly bills
+    if (has(1)) entry(d(1), 'solar', 5000, 'Solar EMI', 'UPI', { source: 'bill', ref: 'b-solar' });
+    if (has(2)) entry(d(2), 'wifi', 1500, 'WiFi + mobile + OTT', 'UPI', { source: 'bill', ref: 'b-wifi' });
+    if (has(9)) entry(d(9), 'gas', 1100, 'Gas cylinder', 'Cash', { source: 'bill', ref: 'b-gas' });
+    if (mk === mkNow) {
+      const next = `${shiftMonth(mk, 1)}-01`;
+      billState['b-solar'] = { due: has(1) ? next : d(1) };
+      billState['b-wifi'] = { due: has(2) ? next : d(1) };
+      billState['b-gas'] = { due: has(9) ? next : d(1) };
+    }
 
     for (let day = 1; day <= last; day++) {
       const date = d(day);
       const dow = parse(date).getDay();
       // Office travel on weekdays
       if (dow >= 1 && dow <= 5) entry(date, 'travel', pick([180, 200, 220, 240]), pick(['Bus + auto', 'Auto', 'Bus to office']), pick(['UPI', 'Cash']));
-      // Vegetables every ~2 days
-      if (day % 2 === 0) entry(date, 'grocery', pick([120, 160, 180, 220, 260]), pick(['Sabzi', 'Sabzi + fruits', 'Tamatar, pyaz', 'Fruits']), pick(['UPI', 'Cash']));
+      // Sabzi every ~2 days: 3 items, prices go up and down a little
+      if (day % 2 === 0) {
+        const picks = new Set([0, 1, 2].map(() => Math.floor(r() * VEG.length)));
+        if (day % 6 === 0) picks.add(0); // onion often
+        for (const i of picks) buyVeg(date, ...VEG[i]);
+      }
       // Milk: 4 L most days, skip a couple, 5 L on a guest day
       const skip = day === 7 || day === 21;
       const litres = day === 12 ? 5 : 4;
@@ -96,7 +117,7 @@ export function buildDemo(t = today()) {
     let b = addDays(start, Math.floor(r() * lasts));
     let guard = 0;
     while (b <= t && guard++ < 40) {
-      const ev = { id: id('s'), itemId: item.id, type: 'bought', date: b, qty, unit: item.unit, price, by: who(), createdAt: at(b), updatedAt: at(b) };
+      const ev = { id: id('s'), itemId: item.id, type: 'bought', date: b, qty, unit: item.unit, by: who(), createdAt: at(b), updatedAt: at(b) };
       if (b >= start) {
         ev.entryId = entry(b, 'grocery', price, `${item.en} / ${item.hi} ${qty} ${item.unit}`, 'UPI', { source: 'stock' }).id;
       }
@@ -109,10 +130,21 @@ export function buildDemo(t = today()) {
     }
   }
 
+  // Today the wife bought besan (shows in "Bought today" and the activity feed).
+  const besan = entry(t, 'grocery', 95, 'Besan / बेसन 1 kg', 'Cash', { source: 'stock', by: 'Wife' });
+  stock.push({ id: id('s'), itemId: 'item-besan', type: 'bought', date: t, qty: 1, unit: 'kg', lastsDays: 21, note: 'Rajdhani 1 kg', entryId: besan.id, by: 'Wife', createdAt: Date.now() - 20 * 60000, updatedAt: Date.now() - 20 * 60000 });
+
+  const bills = DEFAULT_BILLS.map((b) => ({ ...b, firstDue: `${mkNow}-01` }));
+  const lic = bills.find((b) => b.id === 'b-lic');
+  Object.assign(lic, { active: true, amount: 12400, firstDue: addDays(t, 9) });
+  const goals = [{ id: 'g-diwali', name: 'Diwali', emoji: '🪔', target: 6000, by: addDays(t, 22), cat: 'festival', start }];
+
   const meta = [
     { id: 'cats', value: DEFAULT_CATS },
-    { id: 'recurring', value: DEFAULT_RECURRING },
-    { id: 'recurringDone', value: recurringDone },
+    { id: 'bills', value: bills },
+    { id: 'billState', value: billState },
+    { id: 'goals', value: goals },
+    { id: 'vegSeeded', value: true },
     { id: 'milkBilled', value: milkBilled },
     { id: 'milkSettings', value: { ...DEFAULT_MILK, asked: true } },
     { id: 'ccStart', value: DEFAULT_CC_START },
@@ -120,8 +152,13 @@ export function buildDemo(t = today()) {
     { id: 'demo', value: true },
   ].map((m) => ({ ...m, by: 'Me', createdAt: Date.now(), updatedAt: Date.now() }));
 
-  const items = DEFAULT_ITEMS.map((it) => ({ ...it, by: 'Me', createdAt: Date.now(), updatedAt: Date.now() }));
-  return { app: 'kozy', version: 1, entries, items, stock, milk, meta };
+  const notes = { 'item-atta': 'Aashirvaad 10 kg bag', 'item-oil': 'Fortune mustard oil' };
+  const need = ['veg-tomato', 'veg-coriander'];
+  const items = [...DEFAULT_ITEMS, ...DEFAULT_VEG].map((it) => ({
+    ...it, ...(notes[it.id] ? { note: notes[it.id] } : {}), ...(need.includes(it.id) ? { need: true } : {}),
+    ...(it.id === 'item-salt' ? { lowDays: 3 } : {}), by: 'Me', createdAt: Date.now(), updatedAt: Date.now(),
+  }));
+  return { app: 'kozy', version: 2, entries, items, stock, milk, meta };
 }
 
 export async function loadDemo() {

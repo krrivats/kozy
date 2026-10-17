@@ -6,14 +6,22 @@ export const USE_FIREBASE = false;
 // One shared household document in Firestore: households/{HOUSEHOLD_ID}
 export const HOUSEHOLD_ID = 'kozy-home';
 
-// Who is who. In Firebase mode the signed-in email decides the label shown on entries.
-// Keep these in sync with firestore.rules.
+// Who is who, and what they may do. Keep the emails in sync with firestore.rules.
+//   'owner'  = everything, and the only one who changes setup (limits, bills, goals, milk rate, reset)
+//   'member' = sees everything; adds spends, stock, sabzi, milk; edits/deletes only own spends
+//   'viewer' = sees everything, changes nothing
+// To add a view-only person: add a line here AND their email to the viewers list in firestore.rules.
 export const MEMBERS = {
-  'ME_EMAIL': 'Me',
-  'WIFE_EMAIL': 'Wife',
+  'ME_EMAIL': { label: 'Me', role: 'owner' },
+  'WIFE_EMAIL': { label: 'Wife', role: 'member' },
+  // 'VIEWER_EMAIL': { label: 'Papa', role: 'viewer' },
 };
 
-// Name used on entries in local mode.
-export const LOCAL_USER = 'Me';
+// Local mode is the owner. Add ?role=member or ?role=viewer to the URL to preview the other views.
+export const LOCAL_USER = { label: 'Me', role: 'owner' };
+export const LOCAL_PREVIEW_USERS = {
+  member: { label: 'Wife', role: 'member' },
+  viewer: { label: 'Viewer', role: 'viewer' },
+};
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '1.1.0';

@@ -1,7 +1,7 @@
 // Kozy service worker — makes the app open with no internet.
 // Strategy: network first for our own files (so updates show up), cache as fallback (offline).
 // Bump VERSION when files change so old caches are cleaned.
-const VERSION = 'kozy-v1.0.0';
+const VERSION = 'kozy-v1.1.0';
 const SHELL = [
   './',
   'index.html',
@@ -19,6 +19,9 @@ const SHELL = [
   'js/logic/stock.js',
   'js/logic/milk.js',
   'js/logic/demo.js',
+  'js/logic/activity.js',
+  'js/logic/quick.js',
+  'js/logic/reminders.js',
   'js/views/common.js',
   'js/views/home.js',
   'js/views/budget.js',
