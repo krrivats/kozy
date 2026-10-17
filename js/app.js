@@ -66,7 +66,17 @@ async function start() {
 
 start().catch((e) => {
   console.error(e);
-  document.getElementById('view').innerHTML = `<div class="card"><h2>Kozy could not start</h2><p class="muted">${String(e?.message || e)}</p></div>`;
+  const denied = e?.code === 'permission-denied';
+  const msg = denied
+    ? 'This account cannot open the family data. Sign in with one of the two family emails. If you just made an email + password account, open the verify link in your inbox first, then reload.'
+    : String(e?.message || e);
+  document.getElementById('view').innerHTML = `<div class="card stack"><h2>Kozy could not start</h2><p class="muted">${msg.replace(/</g, '&lt;')}</p>
+    <button class="btn primary" onclick="location.reload()">Reload</button>
+    ${denied ? '<button class="btn ghost" id="kz-signout">Sign out</button>' : ''}</div>`;
+  document.getElementById('kz-signout')?.addEventListener('click', async () => {
+    await store.getAdapter()?.signOut?.();
+    location.reload();
+  });
 });
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {

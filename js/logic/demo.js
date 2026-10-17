@@ -63,7 +63,7 @@ export function buildDemo(t = today()) {
       const date = d(day);
       const dow = parse(date).getDay();
       // Office travel on weekdays
-      if (dow >= 1 && dow <= 5) entry(date, 'travel', pick([320, 340, 360, 380]), pick(['Bus + auto', 'Auto', 'Bus to office']), pick(['UPI', 'Cash']));
+      if (dow >= 1 && dow <= 5) entry(date, 'travel', pick([180, 200, 220, 240]), pick(['Bus + auto', 'Auto', 'Bus to office']), pick(['UPI', 'Cash']));
       // Vegetables every ~2 days
       if (day % 2 === 0) entry(date, 'grocery', pick([120, 160, 180, 220, 260]), pick(['Sabzi', 'Sabzi + fruits', 'Tamatar, pyaz', 'Fruits']), pick(['UPI', 'Cash']));
       // Milk: 4 L most days, skip a couple, 5 L on a guest day

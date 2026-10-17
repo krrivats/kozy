@@ -31,7 +31,9 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 
 ## Progress
 - [x] Phase 0 — setup, git, CLAUDE.md, PLAN.md
-- [x] Phase 1 — budget, stock, milk, settings, PWA, tests, local mode
+- [x] Phase 1 — budget, stock, milk, settings, PWA, tests, local mode (13/13 Playwright tests pass, 2026-10-17)
+  - FirestoreAdapter + login written but NOT run yet (no real config). Not tested on a real iPhone yet.
+  - See MORNING_REPORT.md (status + steps) and DECISIONS.md (choices made alone).
 - [ ] Phase 1b — user pastes Firebase config, switch `USE_FIREBASE = true`, test with 2 phones
 - [ ] Phase 1c — GitHub Pages deploy (repo krrivats/kozy)
 - [ ] Phase 2 — medicines with expiry, home items (plumbing/electrical/utensils), bill photo scan with AI

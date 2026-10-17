@@ -63,7 +63,7 @@ export function render() {
         <div><p class="label">Today</p><p class="big2">${td.skip ? 'Skipped' : `✓ ${number(td.litres)} L`}</p></div>
         <button class="btn ghost small" data-act="edit-day" data-day="${t}">${icon('edit')} Change</button>
       </div>` : `
-      <button class="btn primary huge" data-act="tick">${icon('check')} Today's milk ✓ <span class="muted-ink">${number(s.litres)} L</span></button>
+      <button class="btn primary huge" data-act="tick">Today's milk ✓ <span class="muted-ink">${number(s.litres)} L</span></button>
       <div class="row gap">
         <button class="btn ghost grow" data-act="edit-day" data-day="${t}">Different amount</button>
         <button class="btn ghost grow" data-act="skip-today">Skip today</button>

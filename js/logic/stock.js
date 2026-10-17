@@ -115,7 +115,7 @@ export function shoppingList() {
 export function shoppingText(list = shoppingList()) {
   const lines = list.map((a) => {
     const last = a.lastBought ? ` (last: ${a.lastBought.qty} ${a.lastBought.unit || a.item.unit})` : '';
-    const why = a.status === 'finished' ? 'finished' : `~${a.daysLeft} days left`;
+    const why = a.status === 'finished' ? 'finished' : a.daysLeft === 0 ? 'runs out today' : `~${a.daysLeft} days left`;
     return `• ${a.item.en} / ${a.item.hi}${last} — ${why}`;
   });
   return `🛒 Kozy shopping list\n${lines.join('\n')}`;

@@ -55,7 +55,9 @@ export function render() {
   const all = stock.allAnalyzed();
   const shop = stock.shoppingList();
   const counts = { all: all.length, low: all.filter((a) => a.status === 'low').length, finished: all.filter((a) => a.status === 'finished').length };
-  const shown = state.filter === 'all' ? all : all.filter((a) => a.status === state.filter);
+  const rank = { finished: 0, low: 1, ok: 2, none: 3 };
+  const shown = (state.filter === 'all' ? all : all.filter((a) => a.status === state.filter))
+    .sort((x, y) => rank[x.status] - rank[y.status]);
 
   return `
   ${header('Kitchen stock', `${counts.low} running low · ${counts.finished} finished`,
@@ -70,7 +72,7 @@ export function render() {
     </div>
     ${shop.length ? `<ul class="shop-list">${shop.map((a) => `<li data-shop="${a.item.id}">
         <span>${esc(a.item.en)} <span class="hi">/ ${esc(a.item.hi)}</span></span>
-        <span class="chip ${a.status === 'finished' ? 'over' : 'warn'}">${a.status === 'finished' ? 'Finished' : `${a.daysLeft}d left`}</span>
+        <span class="chip ${a.status === 'finished' ? 'over' : 'warn'}">${a.status === 'finished' ? 'Finished' : a.daysLeft === 0 ? 'Today' : `${a.daysLeft}d left`}</span>
       </li>`).join('')}</ul>` : '<p class="empty">Nothing to buy in the next 7 days 🎉</p>'}
   </section>
 

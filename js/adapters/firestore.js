@@ -71,6 +71,8 @@ export class FirestoreAdapter {
 
   async createEmailAccount(email, password) {
     const res = await this.A.createUserWithEmailAndPassword(this.auth, email, password);
+    // firestore.rules only trusts verified emails, so send the verification mail right away.
+    await this.A.sendEmailVerification(res.user);
     this.user = res.user;
     return res.user;
   }

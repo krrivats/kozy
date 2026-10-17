@@ -13,6 +13,7 @@ for (const scheme of ['light', 'dark']) {
     await page.locator('[data-act="demo"]').click();
     await page.locator('.sheet [data-yes]').click();
     await expect(page.locator('.screen-home')).toBeVisible();
+    await expect(page.locator('#toast.show')).toHaveCount(0, { timeout: 5000 });
     // Leave this month's gas bill pending so the recurring card shows on Home.
     await page.evaluate(async () => {
       const store = await import('/js/store.js');

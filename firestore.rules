@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Kozy: only these TWO family emails can read or write anything.
+// Replace ME_EMAIL and WIFE_EMAIL with the real addresses (keep the quotes), then deploy.
+// email_verified stops someone making an email/password account with your address without owning it.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isFamily() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['ME_EMAIL', 'WIFE_EMAIL'];
+    }
+
+    // The ONE shared household document, and everything under it
+    // (entries, items, stock, milk, meta).
+    match /households/{householdId} {
+      allow read, write: if isFamily();
+
+      match /{document=**} {
+        allow read, write: if isFamily();
+      }
+    }
+
+    // Everything else is closed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
