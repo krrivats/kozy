@@ -38,12 +38,14 @@ for (const scheme of ['light', 'dark']) {
     await page.waitForTimeout(300);
     await page.screenshot({ path: `screenshots/quick-add-${scheme}.png` });
     await page.keyboard.press('Escape');
+    await expect(page.locator('#overlay')).toBeHidden();
 
     await page.goto(`/?today=${T}#/stock`);
     await page.locator('.item[data-item="item-atta"] [data-act="bought"]').click();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `screenshots/stock-bought-${scheme}.png` });
     await page.keyboard.press('Escape');
+    await expect(page.locator('#overlay')).toBeHidden();
     await page.locator('.item[data-item="item-atta"] [data-act="detail"]').click();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `screenshots/stock-detail-${scheme}.png` });
