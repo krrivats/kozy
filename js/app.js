@@ -2,6 +2,7 @@
 import * as store from './store.js';
 import { ensureItems } from './logic/stock.js';
 import { ensureBills } from './logic/budget.js';
+import { GUEST, GUEST_KEY } from './config.js';
 import * as home from './views/home.js';
 import * as budgetView from './views/budget.js';
 import * as stockView from './views/stock.js';
@@ -84,6 +85,10 @@ async function start() {
     }
     document.body.classList.add(`role-${role}`);
     await store.loadData();
+    if (GUEST && !store.list('entries').length) {
+      const { loadDemo } = await import('./logic/demo.js'); // a guest starts with a realistic sample month
+      await loadDemo();
+    }
     await ensureItems();
     await ensureBills();
     store.subscribe((col) => (col === 'sync' ? updateSyncDot() : rerender()));
@@ -91,6 +96,14 @@ async function start() {
     window.addEventListener('online', updateSyncDot);
     window.addEventListener('offline', () => { updateSyncDot(); toast('Offline — saving on this phone'); });
     document.getElementById('fab').addEventListener('click', () => openSpendSheet());
+    if (GUEST) {
+      const bar = document.createElement('div');
+      bar.className = 'preview-bar';
+      bar.dataset.test = 'guest-bar';
+      bar.innerHTML = '👤 Guest mode · sample data on this phone only <button type="button">Sign in</button>';
+      bar.querySelector('button').onclick = () => { try { localStorage.removeItem(GUEST_KEY); } catch { /* ignore */ } location.reload(); };
+      document.body.prepend(bar);
+    }
     if (adapter.preview) {
       const bar = document.createElement('div');
       bar.className = 'preview-bar';

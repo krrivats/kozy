@@ -6,13 +6,14 @@ import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebas
 import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs } from 'firebase/firestore';
 
 const rules = readFileSync(new URL('../firestore.rules', import.meta.url), 'utf8')
-  .replace(/'ME_EMAIL'/g, "'me@test.com'")
-  .replace(/'WIFE_EMAIL'/g, "'wife@test.com'")
+  .replace(/'krrish@krrivats\.app'/g, "'me@test.com'")
+  .replace(/'preeti@krrivats\.app'/g, "'wife@test.com'")
   .replace(/'VIEWER_EMAIL'/g, "'papa@test.com'");
 
 let env;
 const H = 'households/kozy-home';
-const as = (email, verified = true) => env.authenticatedContext(email.split('@')[0], { email, email_verified: verified }).firestore();
+const as = (email, verified = true, provider = 'google.com') =>
+  env.authenticatedContext(email.split('@')[0], { email, email_verified: verified, firebase: { sign_in_provider: provider } }).firestore();
 
 before(async () => {
   env = await initializeTestEnvironment({ projectId: 'demo-kozy', firestore: { rules, host: '127.0.0.1', port: 8085 } });
@@ -77,7 +78,9 @@ test('viewer reads everything, writes nothing', async () => {
 
 test('strangers, unverified emails and signed-out users get nothing', async () => {
   await assertFails(getDoc(doc(as('someone@test.com'), `${H}/entries/owner1`)));
-  await assertFails(getDoc(doc(as('me@test.com', false), `${H}/entries/owner1`))); // unverified look-alike
+  await assertFails(getDoc(doc(as('me@test.com', false), `${H}/entries/owner1`))); // unverified Google look-alike
+  await assertSucceeds(getDoc(doc(as('me@test.com', false, 'password'), `${H}/entries/owner1`))); // console-made password account
+  await assertFails(getDoc(doc(as('stranger@test.com', false, 'password'), `${H}/entries/owner1`)));
   await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), `${H}/entries/owner1`)));
   await assertFails(getDoc(doc(as('me@test.com'), 'other/doc')));
 });

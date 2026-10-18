@@ -1,12 +1,13 @@
-// Paste your Firebase web app config here (Firebase console → Project settings → Your apps → Web app).
-// These are placeholders. The app does not use them while USE_FIREBASE = false in config.js.
+// Firebase web app config for project "kozy-7ef39" (Firebase console → Project settings → Your apps → kozy-web).
+// This is NOT a secret: every web app ships it. The data is protected by firestore.rules.
 export const firebaseConfig = {
-  apiKey: 'PASTE_API_KEY',
-  authDomain: 'kozy.firebaseapp.com',
-  projectId: 'kozy',
-  storageBucket: 'kozy.appspot.com',
-  messagingSenderId: 'PASTE_SENDER_ID',
-  appId: 'PASTE_APP_ID',
+  apiKey: 'AIzaSyBCHTiw3SbzuwSEmbp4w2GWky7rDRzuJKA',
+  authDomain: 'kozy-7ef39.firebaseapp.com',
+  projectId: 'kozy-7ef39',
+  storageBucket: 'kozy-7ef39.firebasestorage.app',
+  messagingSenderId: '770066142588',
+  appId: '1:770066142588:web:afd37ddc590bfe4ef9c0f9',
+  measurementId: 'G-P467WVTNJM',
 };
 
 // Phone reminders: Firebase console → Project settings → Cloud Messaging → Web Push certificates →

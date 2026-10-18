@@ -1,18 +1,24 @@
 rules_version = '2';
 
 // Kozy — who can do what (keep the emails in sync with MEMBERS in js/config.js):
-//   OWNER  (ME_EMAIL)        everything; the only one who changes setup (limits, bills, goals, milk rate, reset)
-//   MEMBER (WIFE_EMAIL)      sees everything; adds spends, stock, sabzi, milk; changes/deletes only her own spends
-//   VIEWER (VIEWER_EMAIL...) sees everything; changes nothing
-// Replace the placeholder emails (keep the quotes), then publish in Firebase console → Firestore → Rules.
-// email_verified stops someone making an email/password account with your address without owning it.
+//   OWNER  krrish@krrivats.app   everything; the only one who changes setup (limits, bills, goals, milk rate, reset)
+//   MEMBER preeti@krrivats.app   sees everything; adds spends, stock, sabzi, milk; changes/deletes only her own spends
+//   VIEWER (none yet)            sees everything; changes nothing
+// Publish: Firebase console → Firestore Database → Rules → paste this whole file → Publish.
+//
+// Sign-in: Google accounts must have a verified email. Email + password accounts are accepted unverified,
+// because they are created by you in Firebase console → Authentication → Users and each email can exist only once
+// (also turn OFF Authentication → Settings → User actions → "Enable create (sign-up)").
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function email() { return request.auth.token.email; }
-    function verified() { return request.auth != null && request.auth.token.email_verified == true; }
-    function isOwner() { return verified() && email() == 'ME_EMAIL'; }
-    function isMember() { return verified() && email() in ['WIFE_EMAIL']; }
+    function verified() {
+      return request.auth != null
+        && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'password');
+    }
+    function isOwner() { return verified() && email() == 'krrish@krrivats.app'; }
+    function isMember() { return verified() && email() in ['preeti@krrivats.app']; }
     function isViewer() { return verified() && email() in ['VIEWER_EMAIL']; }
     function canRead() { return isOwner() || isMember() || isViewer(); }
     function canAdd() { return isOwner() || isMember(); }

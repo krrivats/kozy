@@ -628,3 +628,17 @@ test('insights, year view, family spends, monthly plan', async ({ page }) => {
   await page.locator('[data-tab="kitchen"]').click();
   await expect(page.locator('[data-test="shopping"] [data-shop="item-atta"]')).toBeVisible();
 });
+
+test('guest mode: own sample copy on this device, separate from real data, exit to sign in', async ({ page }) => {
+  await fresh(page);
+  await addSpend(page, 777, 'Buffer', 'UPI', 'Real family spend');
+  await page.evaluate(() => localStorage.setItem('kozy.guest', '1'));
+  await page.reload();
+  await expect(page.locator('[data-test="guest-bar"]')).toContainText('Guest mode');
+  await expect(page.locator('.who-chip')).toHaveText('Guest');
+  await expect(page.locator('[data-test="recent"] .act-row')).toHaveCount(4); // demo data loaded
+  await expect(page.locator('[data-test="recent"]')).not.toContainText('Real family spend');
+  await page.locator('[data-test="guest-bar"] button').click();
+  await expect(page.locator('[data-test="guest-bar"]')).toHaveCount(0);
+  await expect(page.locator('[data-test="recent"]')).toContainText('Real family spend');
+});

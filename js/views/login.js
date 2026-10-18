@@ -1,5 +1,17 @@
-// Sign-in screen (only used when USE_FIREBASE = true).
+// Sign-in screen (Firebase mode). Accounts are made by the owner in Firebase console → Authentication → Users,
+// so there is no "create account" here.
 import { logo } from '../ui.js';
+
+const MESSAGES = {
+  'auth/invalid-credential': 'Wrong email or password.',
+  'auth/wrong-password': 'Wrong email or password.',
+  'auth/user-not-found': 'No account with this email. Ask Krrish to add it.',
+  'auth/invalid-email': 'That email doesn’t look right.',
+  'auth/too-many-requests': 'Too many tries. Wait a minute and try again.',
+  'auth/network-request-failed': 'No internet. Connect and try again.',
+  'auth/operation-not-allowed': 'This sign-in method is turned off in Firebase.',
+  'auth/popup-closed-by-user': 'Sign-in window was closed.',
+};
 
 export function renderLogin(adapter, onDone) {
   const root = document.getElementById('view');
@@ -9,33 +21,37 @@ export function renderLogin(adapter, onDone) {
     ${logo(72)}
     <h1>Kozy</h1>
     <p class="muted">Home budget, kitchen stock & milk — for our family.</p>
-    <button class="btn primary huge" data-google>Continue with Google</button>
-    <div class="or"><span>or</span></div>
     <form class="stack" data-email>
-      <input class="input" name="email" type="email" autocomplete="email" placeholder="Email" required>
-      <input class="input" name="password" type="password" autocomplete="current-password" placeholder="Password" minlength="6" required>
-      <div class="row gap">
-        <button class="btn primary grow" type="submit">Sign in</button>
-        <button class="btn ghost grow" type="button" data-create>Create account</button>
-      </div>
+      <input class="input" name="email" type="email" autocomplete="username" placeholder="Email" required>
+      <input class="input" name="password" type="password" autocomplete="current-password" placeholder="Password" required>
+      <button class="btn primary huge" type="submit">Sign in</button>
     </form>
     <p class="form-error" hidden></p>
-    <p class="muted tiny">Only our two family emails can open the data.</p>
+    <div class="or"><span>or</span></div>
+    <button class="btn ghost" data-google>Continue with Google</button>
+    <button class="btn ghost" data-guest data-test="guest">👤 Try as guest</button>
+    <p class="muted tiny">Only our family accounts can open the family data. A guest gets a sample copy that stays on this phone.</p>
   </section>`;
   const err = root.querySelector('.form-error');
-  const show = (e) => { err.textContent = e?.message?.replace('Firebase: ', '') || String(e); err.hidden = false; };
+  const show = (e) => {
+    err.textContent = MESSAGES[e?.code] || e?.message?.replace('Firebase: ', '') || String(e);
+    err.hidden = false;
+  };
   const done = () => { document.body.classList.remove('no-tabs'); onDone(); };
 
-  root.querySelector('[data-google]').onclick = async () => {
-    try { if (await adapter.signInGoogle()) done(); } catch (e) { show(e); }
-  };
   const f = root.querySelector('[data-email]');
   f.onsubmit = async (ev) => {
     ev.preventDefault();
-    try { await adapter.signInEmail(f.email.value.trim(), f.password.value); done(); } catch (e) { show(e); }
+    const btn = f.querySelector('button');
+    btn.disabled = true;
+    btn.textContent = 'Signing in…';
+    try { await adapter.signInEmail(f.email.value.trim(), f.password.value); done(); } catch (e) { show(e); btn.disabled = false; btn.textContent = 'Sign in'; }
   };
-  root.querySelector('[data-create]').onclick = async () => {
-    if (!f.reportValidity()) return;
-    try { await adapter.createEmailAccount(f.email.value.trim(), f.password.value); done(); } catch (e) { show(e); }
+  root.querySelector('[data-guest]').onclick = () => {
+    try { localStorage.setItem('kozy.guest', '1'); } catch { /* private mode: guest can't start */ }
+    location.reload();
+  };
+  root.querySelector('[data-google]').onclick = async () => {
+    try { if (await adapter.signInGoogle()) done(); } catch (e) { show(e); }
   };
 }

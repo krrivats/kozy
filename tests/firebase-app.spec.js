@@ -128,4 +128,15 @@ test('viewer sees everything, cannot add; stranger and unverified are refused', 
   await signIn(s, 'stranger@test.com');
   await expect(s.locator('.card')).toContainText('cannot open the family data', { timeout: 20000 });
   await ctx2.close();
+
+  // Guest from the login screen: sample copy, never the family's Firestore data
+  const ctx3 = await browser.newContext();
+  const g = await ctx3.newPage();
+  await g.goto(URL_());
+  await expect(g.locator('.login')).toBeVisible({ timeout: 20000 });
+  await g.locator('[data-test="guest"]').click();
+  await expect(g.locator('[data-test="guest-bar"]')).toBeVisible({ timeout: 20000 });
+  await expect(g.locator('.who-chip')).toHaveText('Guest');
+  await expect(g.locator('[data-test="recent"]')).not.toContainText('Plumber');
+  await ctx3.close();
 });
