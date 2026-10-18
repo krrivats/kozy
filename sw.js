@@ -1,7 +1,7 @@
 // Kozy service worker — makes the app open with no internet.
 // Strategy: network first for our own files (so updates show up), cache as fallback (offline).
 // Bump VERSION when files change so old caches are cleaned.
-const VERSION = 'kozy-v1.4.1';
+const VERSION = 'kozy-v1.4.2';
 const SHELL = [
   './',
   'index.html',
@@ -71,7 +71,9 @@ self.addEventListener('fetch', (event) => {
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     try {
-      const res = await fetch(req);
+      // 'no-cache' = always ask the server if the file changed, so a new version shows up right away
+      // (GitHub Pages otherwise lets browsers keep old files for 10 minutes).
+      const res = await fetch(req.mode === 'navigate' ? new Request(req.url, { cache: 'no-cache' }) : new Request(req, { cache: 'no-cache' }));
       if (res.ok && res.type === 'basic') cache.put(req, res.clone());
       return res;
     } catch {
