@@ -107,3 +107,13 @@ Some replace v1 decisions above (marked ♻️).
 | 70 | **Milk = a running account with the milkman**: every delivered day adds litres × rate to what you owe; **Pay** records money given (full or part) as a Milk spend; anything unpaid shows as **"Earlier unpaid"** next month, plus a Home chip. Older monthly milk bills count as payments. | You pay him at month end, sometimes not the full amount. |
 | 71 | **Nothing to set up each month**: limits, bills, salary-day items and milk rate are not per-month, so they simply continue. On the 1st–5th a **New month** card says how last month ended. | "Whatever I set now should be taken for next month automatically." |
 | 72 | **Smart limits**: each limit shows your **usual spend** (last 3 months); "Set limits to my usual spend" fills them (rounded up to ₹100) and you review → Save. | Uses your own history; never changes limits without you. |
+
+---
+
+## v1.6 (18 Oct) — two kinds of milk
+
+| # | Decision | Why |
+|---|---|---|
+| 73 | **Milk types**, each with its own litres/day and ₹/L (default 🐃 Buffalo 2 L + 🐄 Cow 1.5 L; add or remove types in Settings → Milk). A day stores litres and rate per type. | You buy buffalo and cow milk at different prices. |
+| 74 | **One tap logs every type** at its usual amount; the message offers **Change**, which opens the day editor (one − / + per type). Tapping a calendar day opens the same editor. | "One tap and done, but I can open it, change and save." |
+| 75 | A new rate applies from that day on; **old days keep their rate**. Older one-milk days still count (shown as "Milk"). | The milkman's account must never change for days already past. |

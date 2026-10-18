@@ -108,20 +108,23 @@ export function toast(msg, opts = '') {
   const o = typeof opts === 'string' ? { kind: opts } : opts;
   const el = document.getElementById('toast');
   el.replaceChildren(document.createTextNode(msg));
-  if (o.undo) {
+  // { undo: fn } shows "Undo"; { action: { label, fn } } shows any button (e.g. "Change").
+  const btn = o.undo ? { label: 'Undo', fn: async () => { await o.undo(); toast('Undone ✓'); } } : o.action;
+  if (btn) {
     const b = document.createElement('button');
     b.className = 'toast-undo';
-    b.textContent = 'Undo';
+    b.textContent = btn.label;
+    b.dataset.test = 'toast-action';
     b.onclick = async () => {
       clearTimeout(toastTimer);
       el.className = 'toast';
-      try { await o.undo(); toast('Undone ✓'); } catch (e) { toast(e.message, 'err'); }
+      try { await btn.fn(); } catch (e) { toast(e.message, 'err'); }
     };
     el.appendChild(b);
   }
-  el.className = `toast show ${o.kind || ''} ${o.undo ? 'has-undo' : ''}`;
+  el.className = `toast show ${o.kind || ''} ${btn ? 'has-undo' : ''}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = 'toast'; }, o.undo ? 5000 : 2200);
+  toastTimer = setTimeout(() => { el.className = 'toast'; }, btn ? 5000 : 2200);
 }
 
 // A blocked write (view-only user, or a member touching setup) shows a friendly message instead of failing silently.

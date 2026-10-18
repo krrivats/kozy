@@ -10,6 +10,7 @@ import { money, moneyShort, esc, today, dayLabel } from '../logic/format.js';
 import { icon, toast, confirmSheet, download, bar, savedTheme, applyTheme } from '../ui.js';
 import { header } from './common.js';
 import { openItemForm } from './stock.js';
+import { typesEditor, readTypes, wireTypesEditor } from './milk.js';
 import { APP_VERSION, USE_FIREBASE } from '../config.js';
 
 const EMOJIS = ['🧾', '🎓', '💊', '🚗', '🎁', '👕', '🍽️', '📚', '🐄', '🛠️'];
@@ -137,11 +138,11 @@ export function render() {
   ${section('bills', '🔁 Bills & salary day', billsBody(owner), `${budget.bills().filter((b) => b.active).length} active`)}
   ${section('goals', '🎯 Goals', goalsBody(owner), `${budget.goals().length}`)}
   ${section('money', '🥛 Milk', `
-    <form data-form="milk" class="row gap align-end">
-      <label class="field grow"><span>Milk L/day</span><input class="input" name="litres" type="number" step="0.5" min="0" inputmode="decimal" value="${ms.litres}" ${owner ? '' : 'disabled'}></label>
-      <label class="field grow"><span>₹/litre</span><input class="input" name="rate" type="number" min="0" inputmode="decimal" value="${ms.rate}" ${owner ? '' : 'disabled'}></label>
-      ${owner ? '<button class="btn primary" type="submit">Save</button>' : ''}
-    </form>`)}
+    <form data-form="milk" class="stack-s">
+      ${typesEditor(ms.types, !owner)}
+      <p class="muted tiny">Each kind of milk keeps its own rate. A new rate applies from today; old days keep theirs.</p>
+      ${owner ? '<button class="btn primary" type="submit">Save milk</button>' : ''}
+    </form>`, milk.defaultLabel(ms.types))}
   ${section('family', '👪 Family names', `
     <form data-form="family" class="stack-s">
       <input class="input" name="family" value="${esc(budget.familyNames().join(', '))}" aria-label="Family names" ${owner ? '' : 'disabled'}>
@@ -191,6 +192,7 @@ function readRows(form, fields) {
 }
 
 export function bind(root, rerender) {
+  wireTypesEditor(root);
   // remember which sections are open across re-renders
   root.addEventListener('toggle', (ev) => {
     const d = ev.target.closest?.('[data-sec]');
@@ -338,7 +340,7 @@ export function bind(root, rerender) {
       await store.setMeta('ccStart', Number(f.start.value) || 0);
       toast('Card due saved ✓');
     } else if (kind === 'milk') {
-      await milk.saveSettings({ litres: Number(f.litres.value) || 0, rate: Number(f.rate.value) || 0 });
+      await milk.saveSettings({ types: readTypes(f) });
       toast('Milk settings saved ✓');
     }
     rerender();

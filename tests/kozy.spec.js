@@ -319,43 +319,61 @@ test('shopping list: copy, share, shopping mode ticks several items at once', as
   await expect(tile(page, 'Groceries')).toContainText('₹70');
 });
 
-test('milk log: first-run setup, tick + undo, skip, calendar, bill to Milk spend', async ({ page }) => {
+test('milk: buffalo + cow with own rates, one-tap tick, Change, per-type totals, pay milkman', async ({ page }) => {
   await fresh(page, T, 'milk');
-  await page.locator('[data-test="milk-setup"] input[name="litres"]').fill('3');
-  await page.locator('[data-test="milk-setup"] input[name="rate"]').fill('65');
-  await page.locator('[data-test="milk-setup"] button[type="submit"]').click();
-  await expect(page.locator('[data-test="milk-setup"]')).toHaveCount(0);
+  const setup = page.locator('[data-test="milk-setup"]');
+  await expect(setup.locator('.mtype')).toHaveCount(2); // Buffalo 2 L + Cow 1.5 L by default
+  await setup.locator('.mtype[data-type="buffalo"] [name="t-rate"]').fill('70');
+  await setup.locator('.mtype[data-type="cow"] [name="t-rate"]').fill('55');
+  await setup.locator('button[type="submit"]').click();
+  await expect(setup).toHaveCount(0);
+  await expect(page.locator('.top .sub')).toContainText('2 L 🐃 + 1.5 L 🐄');
 
+  // one tap = done; the toast offers Change → same day editor
   await page.locator('[data-act="tick"]').click();
-  await expect(page.locator('[data-test="milk-today"]')).toContainText('✓ 3 L');
-  await page.locator('#toast .toast-undo').click();
-  await expect(page.locator('[data-act="tick"]')).toBeVisible();
-  await page.locator('[data-act="tick"]').click();
+  await expect(page.locator('[data-test="milk-today"]')).toContainText('✓ 3.5 L');
+  await page.locator('#toast [data-test="toast-action"]').click();
+  const day = page.locator('[data-test="milk-day"]');
+  await expect(day.locator('[name="l-buffalo"]')).toHaveValue('2');
+  await day.locator('[name="l-cow"]').fill('2');
+  await day.locator('button[type="submit"]').click();
+  await expect(page.locator('[data-test="milk-today"]')).toContainText('✓ 4 L');
   await expect(page.locator(`.cal-cell[data-day="${T}"]`)).toHaveClass(/got/);
 
+  // another day from the calendar: 2 buffalo + 1 cow; and a skipped day
   await page.locator('.cal-cell[data-day="2026-10-16"]').click();
-  await page.locator('.sheet input[name="litres"]').fill('4.5');
-  await page.locator('.sheet button[type="submit"]').click();
+  await day.locator('[name="l-cow"]').fill('1');
+  await day.locator('button[type="submit"]').click();
   await page.locator('.cal-cell[data-day="2026-10-15"]').click();
   await page.locator('.sheet [data-skip]').click();
   await expect(page.locator('.cal-cell[data-day="2026-10-15"]')).toHaveClass(/skip/);
   await expect(page.locator('.cal-cell[data-day="2026-10-20"]')).toBeDisabled();
-  await expect(page.locator('[data-test="milk-litres"]')).toHaveText('7.5');
-  await expect(page.locator('[data-test="milk-amount"]')).toHaveText('₹488');
 
-  // Milkman balance: what the milk cost so far = due; a part payment leaves the rest due
-  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹488');
+  // 17th: 2×70 + 2×55 = 250 · 16th: 2×70 + 1×55 = 195 → 7 L, ₹445
+  await expect(page.locator('[data-test="milk-litres"]')).toHaveText('7');
+  await expect(page.locator('[data-test="milk-amount"]')).toHaveText('₹445');
+  await expect(page.locator('[data-test="milk-by-type"]')).toContainText('Buffalo');
+  await expect(page.locator('[data-test="milk-by-type"]')).toContainText('₹280');
+  await expect(page.locator('[data-test="milk-by-type"]')).toContainText('₹165');
+
+  // milkman: due ₹445, part payment leaves the rest
+  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹445');
   await page.locator('[data-test="pay-milk"]').click();
-  await expect(page.locator('[data-test="pay-sheet"] input[name="amount"]')).toHaveValue('488');
   await page.locator('[data-test="pay-sheet"] input[name="amount"]').fill('300');
   await page.locator('[data-test="pay-sheet"] [data-save]').click();
-  await expect(page.locator('#toast')).toContainText('₹188 left');
-  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹188');
-  await expect(page.locator('[data-test="milk-payments"]')).toContainText('Paid milkman');
+  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹145');
   await go(page, T, 'budget');
   await expect(tile(page, 'Milk')).toContainText('₹300');
   await go(page, T, 'home');
-  await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 3 L');
+  await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 4 L');
+
+  // a new rate applies from now; old days keep theirs
+  await go(page, T, 'settings');
+  await openSec(page, 'money');
+  await page.locator('[data-sec="money"] .mtype[data-type="cow"] [name="t-rate"]').fill('60');
+  await page.locator('[data-form="milk"] button[type="submit"]').click();
+  await go(page, T, 'milk');
+  await expect(page.locator('[data-test="milk-amount"]')).toHaveText('₹445');
 });
 
 test('CSV export downloads the month', async ({ page }) => {

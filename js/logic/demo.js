@@ -4,7 +4,7 @@ import * as store from '../store.js';
 import { today, addDays, monthKey, shiftMonth, daysInMonth, pad, parse } from './format.js';
 import { DEFAULT_CATS, DEFAULT_BILLS, DEFAULT_CC_START } from './budget.js';
 import { DEFAULT_ITEMS, DEFAULT_VEG } from './stock.js';
-import { DEFAULT_MILK } from './milk.js';
+import { DEFAULT_TYPES } from './milk.js';
 
 function rng(seed) {
   return () => {
@@ -92,9 +92,13 @@ export function buildDemo(t = today()) {
       }
       // Milk: 4 L most days, skip a couple, 5 L on a guest day
       const skip = day === 7 || day === 21;
-      const litres = day === 12 ? 5 : 4;
+      const cow = day === 12 ? 2.5 : 1.5; // a guest day
       const isToday = date === t;
-      if (!isToday) milk.push({ id: date, litres: skip ? 0 : litres, rate: 60, skip, by: who(), createdAt: at(date), updatedAt: at(date) });
+      if (!isToday) {
+        milk.push(skip
+          ? { id: date, items: {}, litres: 0, skip: true, by: who(), createdAt: at(date), updatedAt: at(date) }
+          : { id: date, items: { buffalo: { litres: 2, rate: 70 }, cow: { litres: cow, rate: 55 } }, litres: 2 + cow, skip: false, by: who(), createdAt: at(date), updatedAt: at(date) });
+      }
     }
 
     if (has(5)) entry(d(5), 'cc', 3000, 'Credit card payment', 'UPI', { source: 'bill', ref: 'c-card' });
@@ -109,7 +113,8 @@ export function buildDemo(t = today()) {
     if (has(10)) entry(d(10), 'misc', 350, 'Dadi glasses repair', 'Cash');
 
     if (mk !== mkNow) {
-      const total = milk.filter((m) => m.id.startsWith(mk) && !m.skip).reduce((s, m) => s + m.litres * m.rate, 0);
+      const total = milk.filter((m) => m.id.startsWith(mk) && !m.skip)
+        .reduce((s, m) => s + Object.values(m.items).reduce((a, x) => a + x.litres * x.rate, 0), 0);
       milkBilled[mk] = entry(d(daysInMonth(mk)), 'milk', total, `Milk bill ${mk}`, 'Cash', { source: 'milk' }).id;
     }
   }
@@ -151,7 +156,7 @@ export function buildDemo(t = today()) {
     { id: 'vegSeeded', value: true },
     { id: 'checklistSeeded', value: true },
     { id: 'milkBilled', value: milkBilled },
-    { id: 'milkSettings', value: { ...DEFAULT_MILK, asked: true } },
+    { id: 'milkSettings', value: { types: DEFAULT_TYPES, asked: true } },
     { id: 'ccStart', value: DEFAULT_CC_START },
     { id: 'itemsSeeded', value: true },
     { id: 'demo', value: true },

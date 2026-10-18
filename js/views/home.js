@@ -189,7 +189,7 @@ export function bind(root) {
     else if (act === 'milk-tick') {
       bump(t);
       await milk.tickToday();
-      toast(`Milk ${number(milk.settings().litres)} L logged ✓`, { undo: () => milk.clearDay(today()) });
+      toast(`Milk ${milk.defaultLabel()} logged ✓`, { action: { label: 'Change', fn: async () => { const m = await import('./milk.js'); m.openMilkDay(today()); } } });
     }
   });
 }

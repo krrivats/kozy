@@ -648,3 +648,24 @@ body.role-viewer .fab { visibility: hidden; }
 .warn-text b { color: var(--warn) !important; }
 .newmonth { background: linear-gradient(135deg, color-mix(in srgb, var(--coin) 16%, transparent), transparent 70%), var(--glass); }
 .newmonth .nm-lines { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin-top: 4px; }
+
+/* v1.6 milk types */
+.mtype { flex-wrap: wrap; }
+.mtype .grow { min-width: 90px; }
+.mini-field { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); font-weight: 650; }
+.mini-field .input { width: 64px; text-align: right; padding: 0 8px; }
+.mday-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mday-name { font-weight: 700; min-width: 0; }
+.mday-row .stepper { flex: none; width: 190px; }
+.mday-row .stepper input { min-height: 46px; font-size: 19px; }
+.mday-row .stepper .icon-btn { width: 46px; height: 46px; }
+.type-split { margin-top: 8px; }
+/* milk type rows: one tidy grid row; tick button on two lines */
+.mtype { display: grid; grid-template-columns: 44px minmax(0, 1fr) 60px 60px 34px; gap: 6px; align-items: end; }
+.mtype .emo-in { width: 44px; }
+.mini-field { flex-direction: column-reverse; align-items: stretch; gap: 2px; font-size: 10px; text-align: center; text-transform: uppercase; letter-spacing: .03em; }
+.mini-field .input { width: 100%; padding: 0 6px; }
+.mtype .icon-btn { width: 34px; }
+.mtype > .btn, [data-types] > .btn { grid-column: 1 / -1; }
+.btn.tick { flex-direction: column; gap: 0; white-space: normal; line-height: 1.15; min-height: 54px; }
+.btn.tick .muted-ink { font-size: 12px; }
