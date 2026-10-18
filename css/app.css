@@ -83,7 +83,11 @@ h2 { font-size: 14.5px; font-weight: 650; display: flex; align-items: center; ga
 /* ---------- App column ---------- */
 .app { position: relative; max-width: 480px; min-height: 100dvh; margin: 0 auto; background: var(--bg); }
 @media (min-width: 520px) { .app { box-shadow: 0 0 0 1px var(--line), 0 20px 60px rgba(0, 0, 0, .08); } }
-.view { padding: calc(var(--safe-t) + 10px) 14px calc(var(--tab-h) + var(--safe-b) + 78px); }
+.view {
+  padding-block: calc(var(--safe-t) + 10px) calc(var(--tab-h) + var(--safe-b) + 78px);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
 .screen { display: flex; flex-direction: column; gap: 10px; animation: fade .16s ease-out; }
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .boot { display: grid; place-items: center; min-height: 60vh; }
