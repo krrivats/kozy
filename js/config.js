@@ -37,6 +37,13 @@ export const MEMBERS = {
   // 'someone@krrivats.app': { label: 'Papa', role: 'viewer' },
 };
 
+// Login with just a name: "krrish" → "krrish@krrivats.app". A full email (with @) is used as typed.
+export const LOGIN_DOMAIN = 'krrivats.app';
+export function loginEmail(input) {
+  const v = String(input || '').trim().toLowerCase();
+  return !v || v.includes('@') ? v : `${v}@${LOGIN_DOMAIN}`;
+}
+
 // Local mode is the owner. Add ?role=member or ?role=viewer to the URL to preview the other views.
 export const LOCAL_USER = { label: 'Me', role: 'owner' };
 export const LOCAL_PREVIEW_USERS = {
@@ -44,4 +51,4 @@ export const LOCAL_PREVIEW_USERS = {
   viewer: { label: 'Viewer', role: 'viewer' },
 };
 
-export const APP_VERSION = '1.4.0';
+export const APP_VERSION = '1.4.1';

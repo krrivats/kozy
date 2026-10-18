@@ -180,3 +180,11 @@ Thank you visit again`;
   expect(r.rows.length).toBe(6);
   expect(r.sum).toBe(1033);
 });
+
+test('login with just a name adds the family domain', async () => {
+  const { loginEmail } = await import('../js/config.js');
+  expect(loginEmail('krrish')).toBe('krrish@krrivats.app');
+  expect(loginEmail('  Preeti ')).toBe('preeti@krrivats.app');
+  expect(loginEmail('me@test.com')).toBe('me@test.com');
+  expect(loginEmail('')).toBe('');
+});

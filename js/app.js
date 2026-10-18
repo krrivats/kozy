@@ -80,7 +80,7 @@ async function start() {
     const role = store.role();
     if (!role) {
       const err = new Error('not-a-member');
-      err.code = 'permission-denied';
+      err.code = 'not-a-member';
       throw err;
     }
     document.body.classList.add(`role-${role}`);
@@ -119,15 +119,22 @@ async function start() {
 
 start().catch(showError);
 
+// Says exactly what failed, so it can be fixed: which account, and whether it's the app's family list or Firebase's rules.
 function showError(e) {
   console.error(e);
+  const email = store.getAdapter()?.userEmail?.() || '';
+  const notMember = e?.code === 'not-a-member';
   const denied = e?.code === 'permission-denied';
-  const msg = denied
-    ? 'This account cannot open the family data. Sign in with one of the family emails. If you just made an email + password account, open the verify link in your inbox first, then reload.'
-    : String(e?.message || e);
-  document.getElementById('view').innerHTML = `<div class="card stack"><h2>Kozy could not start</h2><p class="muted">${msg.replace(/</g, '&lt;')}</p>
+  const msg = notMember
+    ? `This account cannot open the family data: ${email || 'this email'} is not in Kozy's family list. Sign in with a family email.`
+    : denied
+      ? `This account cannot open the family data: Firebase refused ${email || 'this account'}. Usually the rules in Firebase console are an older copy — publish the latest firestore.rules (Firestore Database → Rules → paste → Publish), then tap Reload.`
+      : String(e?.message || e);
+  const detail = [e?.code, email].filter(Boolean).join(' · ');
+  document.getElementById('view').innerHTML = `<div class="card stack" data-test="start-error"><h2>Kozy could not start</h2><p class="muted">${msg.replace(/</g, '&lt;')}</p>
+    ${detail ? `<p class="muted tiny">Details: ${detail.replace(/</g, '&lt;')}</p>` : ''}
     <button class="btn primary" onclick="location.reload()">Reload</button>
-    ${denied ? '<button class="btn ghost" id="kz-signout">Sign out</button>' : ''}</div>`;
+    ${notMember || denied ? '<button class="btn ghost" id="kz-signout">Sign out</button>' : ''}</div>`;
   document.getElementById('kz-signout')?.addEventListener('click', async () => {
     await store.getAdapter()?.signOut?.();
     location.reload();

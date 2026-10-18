@@ -1,12 +1,13 @@
 // Sign-in screen (Firebase mode). Accounts are made by the owner in Firebase console → Authentication → Users,
 // so there is no "create account" here.
 import { logo } from '../ui.js';
+import { loginEmail } from '../config.js';
 
 const MESSAGES = {
-  'auth/invalid-credential': 'Wrong email or password.',
-  'auth/wrong-password': 'Wrong email or password.',
-  'auth/user-not-found': 'No account with this email. Ask Krrish to add it.',
-  'auth/invalid-email': 'That email doesn’t look right.',
+  'auth/invalid-credential': 'Wrong name or password.',
+  'auth/wrong-password': 'Wrong name or password.',
+  'auth/user-not-found': 'No account with this name. Ask Krrish to add it.',
+  'auth/invalid-email': 'That name doesn’t look right.',
   'auth/too-many-requests': 'Too many tries. Wait a minute and try again.',
   'auth/network-request-failed': 'No internet. Connect and try again.',
   'auth/operation-not-allowed': 'This sign-in method is turned off in Firebase.',
@@ -22,7 +23,8 @@ export function renderLogin(adapter, onDone) {
     <h1>Kozy</h1>
     <p class="muted">Home budget, kitchen stock & milk — for our family.</p>
     <form class="stack" data-email>
-      <input class="input" name="email" type="email" autocomplete="username" placeholder="Email" required>
+      <input class="input" name="email" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false"
+        placeholder="Your name (krrish / preeti)" aria-label="Your name" required>
       <input class="input" name="password" type="password" autocomplete="current-password" placeholder="Password" required>
       <button class="btn primary huge" type="submit">Sign in</button>
     </form>
@@ -45,7 +47,7 @@ export function renderLogin(adapter, onDone) {
     const btn = f.querySelector('button');
     btn.disabled = true;
     btn.textContent = 'Signing in…';
-    try { await adapter.signInEmail(f.email.value.trim(), f.password.value); done(); } catch (e) { show(e); btn.disabled = false; btn.textContent = 'Sign in'; }
+    try { await adapter.signInEmail(loginEmail(f.email.value), f.password.value); done(); } catch (e) { show(e); btn.disabled = false; btn.textContent = 'Sign in'; }
   };
   root.querySelector('[data-guest]').onclick = () => {
     try { localStorage.setItem('kozy.guest', '1'); } catch { /* private mode: guest can't start */ }
