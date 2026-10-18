@@ -32,4 +32,4 @@ export const LOCAL_PREVIEW_USERS = {
   viewer: { label: 'Viewer', role: 'viewer' },
 };
 
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';

@@ -82,3 +82,16 @@ Some replace v1 decisions above (marked ♻️).
 | 59 | **Family spends** are found by **whole-word names in the note**, case-insensitive ("papa" counts, "papaya" doesn't). Names are editable in Settings → Family names. Tap a name in Summary to see those spends. | You said you'd just write the name in the note. |
 | 60 | **Bill scan uses Tesseract.js** (free, open source), loaded from the jsDelivr CDN only when you tap 📷. The photo is read **on the device** and never uploaded. Lines matching an item become purchases; other lines become Groceries spends. You always review before saving. | Free and private. An AI vision service would read better but costs money and sends photos away. |
 | 61 | The scanner reads **printed English bills** well. Handwritten or Hindi bills and crumpled photos may come out poorly, so you can untick or fix any line. | An honest limit of free OCR. |
+
+---
+
+## v1.3 (18 Oct) — redesign + edit from everywhere
+
+| # | Decision | Why |
+|---|---|---|
+| 62 | **New look: glass cards over a soft glow**, jade→teal accent with a saffron coin colour, dark and light both designed. Bigger numbers, uppercase micro-labels, gradient buttons. | You asked for compact, futuristic, modern and interactive. |
+| 63 | **Floating dock** (Home · Budget · **+** · Stock · Milk). The + is in the middle, and ⚙️ Settings moved to every screen's header. | The + is the most used button, so it sits in the thumb's natural spot. Settings is used rarely. |
+| 64 | **Home**: a ring gauge (% of budget used) next to the money left, plus a **quick-action row** (Add · Scan bill · Tick milk · Shop). Items to buy show only on the Shop button (no duplicate chip). | The fewest taps for the four daily jobs. |
+| 65 | **Tap hints**: ✎ means the row opens an editor, › means it opens a list. Every list row is now tappable: goals (edit), who-spent, vs-last-month, year categories and savings (open those spends), sabzi movers (price history), plan rows (the item). | "Everywhere I tap, I should be able to edit." |
+| 66 | Animations only when you **change screen** (cards rise in, bars and the ring fill), never on every data change, and none when the phone asks for reduced motion. | Feels alive without being distracting or slow. |
+| 67 | A kitchen item past its run-out date says **"Due since 15 Oct"** instead of "Runs out today". | It's clearer that you should tap ✓ Finished if it's over. |

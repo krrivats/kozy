@@ -23,6 +23,7 @@ function countdown(a) {
   if (a.status === 'none') return '<span class="cd muted">Not tracked yet — tap + when you buy it</span>';
   if (a.status === 'finished') return `<span class="cd over">Finished${a.avgDays ? ` · usually lasts ${Math.round(a.avgDays)}d` : ''}</span>`;
   if (!a.runout) return `<span class="cd muted">Bought ${relDay(a.open.date)} · tap to set days</span>`;
+  if (a.runout < today()) return `<span class="cd over">⏳ Due since ${dayLabel(a.runout)} · tap ✓ when it's over</span>`;
   const left = a.daysLeft === 0 ? 'Runs out today' : `${a.daysLeft} day${a.daysLeft === 1 ? '' : 's'} left`;
   return `<span class="cd ${a.status === 'low' ? 'warn' : ''}">⏳ ${left} · ${dayLabel(a.runout)}</span>`;
 }
@@ -154,14 +155,14 @@ function planView() {
     return '<p class="empty">Buy a few things first. After a few weeks Kozy shows how much you use per month and what to buy next month.</p>';
   }
   const kRow = (r) => `<div class="plan-row" data-plan="${r.item.id}">
-      <span class="grow"><b>${esc(r.item.en)}</b> <span class="hi">${esc(r.item.hi)}</span>
-        <span class="muted small block">uses ${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · buy ${r.packs} × ${number(r.pack)} ${esc(r.unit)}</span></span>
+      <button class="grow go-row plan-open" data-act="detail" data-id="${r.item.id}"><b>${esc(r.item.en)}</b> <span class="hi">${esc(r.item.hi)}</span>
+        <span class="muted small block">uses ${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · buy ${r.packs} × ${number(r.pack)} ${esc(r.unit)}</span></button>
       <span class="num plan-amt">${r.rate ? money(r.suggestCost) : '—'}</span>
       ${w ? `<button class="icon-btn ${r.item.need ? 'on' : ''}" data-act="plan-need" data-id="${r.item.id}" aria-label="${r.item.need ? 'Remove from' : 'Add to'} shopping list">${icon(r.item.need ? 'check' : 'plus')}</button>` : ''}
     </div>`;
   const vRow = (r) => `<div class="plan-row" data-plan="${r.item.id}">
-      <span class="grow">${r.item.emoji || '🥬'} <b>${esc(r.item.en)}</b>
-        <span class="muted small block">${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · ~${qtyTxt(r.perWeek, r.unit)} ${esc(r.unit)}/week${r.rate ? ` · avg ${money(r.rate)}/${esc(r.unit)}` : ''}</span></span>
+      <button class="grow go-row plan-open" data-act="veg" data-id="${r.item.id}">${r.item.emoji || '🥬'} <b>${esc(r.item.en)}</b>
+        <span class="muted small block">${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · ~${qtyTxt(r.perWeek, r.unit)} ${esc(r.unit)}/week${r.rate ? ` · avg ${money(r.rate)}/${esc(r.unit)}` : ''}</span></button>
       <span class="num plan-amt">${r.rate ? money(r.costPerMonth) : '—'}</span>
     </div>`;
   return `
@@ -585,4 +586,4 @@ export function bind(root, rerender) {
   });
 }
 
-export { itemForm as openItemForm };
+export { itemForm as openItemForm, vegSheet as openVegSheet };

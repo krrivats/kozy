@@ -58,10 +58,15 @@ export function syncDot() {
   return `<span class="sync ${busy ? 'busy' : ''}" title="${busy ? 'Saving…' : 'Synced'}" aria-label="${busy ? 'Saving' : 'Synced'}" data-sync></span>`;
 }
 
+// ⚙️ Settings sits in every header (the dock has the + button instead).
+export function gearLink() {
+  return `<a class="icon-btn gear-btn ${location.hash.startsWith('#/settings') ? 'on' : ''}" href="#/settings" aria-label="Settings">${icon('gear')}</a>`;
+}
+
 export function header(title, sub = '', right = '') {
   return `<header class="top">
-    <div><h1>${title} ${syncDot()}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div>
-    <div class="top-right">${right}</div>
+    <div class="top-title"><h1>${title} ${syncDot()}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div>
+    <div class="top-right">${right}${gearLink()}</div>
   </header>`;
 }
 

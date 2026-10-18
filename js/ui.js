@@ -29,6 +29,8 @@ const P = {
   up: '<path d="m6 15 6-6 6 6"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
   note: '<path d="M5 4h14v16H5z"/><path d="M9 9h6M9 13h6M9 17h3"/>',
+  camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4Z"/><circle cx="12" cy="13" r="3.5"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16Z"/>',
 };
 
 export function icon(name, cls = '') {

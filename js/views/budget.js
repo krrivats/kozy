@@ -7,6 +7,8 @@ import { money, moneyShort, monthKey, shiftMonth, esc, monthName, monthShortName
 import { icon, bar, download, toast } from '../ui.js';
 import { entriesGrouped, monthSwitch, header, entryRow } from './common.js';
 import { openSpendSheet } from './spend-sheet.js';
+import { openVegSheet } from './stock.js';
+import { openSheet, closeSheet, confirmSheet } from '../ui.js';
 
 const state = { mk: monthKey(), cat: null, who: null, view: 'cats', fy: budget.fyOf(), fam: null };
 
@@ -62,19 +64,19 @@ function catsView(s) {
 
   ${gs.length ? `<section class="card tight" data-test="goals">
     <div class="card-head"><h2>🎯 Goals</h2></div>
-    ${gs.map((g) => `<div class="cat-mini">
-      <div class="row between"><span>${g.emoji || '🎯'} ${esc(g.name)}${g.by ? `<span class="muted small"> · by ${dayLabel(g.by)}</span>` : ''}</span>
-        <span class="num"><b>${money(g.saved)}</b><span class="muted"> / ${money(g.target)}</span></span></div>
-      ${bar(g.saved, g.target, g.pct >= 1 ? 'ok' : 'ok')}
-    </div>`).join('')}
+    ${gs.map((g) => `<button class="cat-mini edit-row" data-act="goal" data-id="${g.id}">
+      <span class="row between"><span>${g.emoji || '🎯'} ${esc(g.name)}${g.by ? `<span class="muted small"> · by ${dayLabel(g.by)}</span>` : ''}</span>
+        <span class="num"><b>${money(g.saved)}</b><span class="muted"> / ${money(g.target)}</span></span></span>
+      ${bar(g.saved, g.target, 'ok')}
+    </button>`).join('')}
   </section>` : ''}
 
   <div class="quick2">
     <section class="card mini" data-test="savings">
       <h2>🏦 Savings</h2>
-      ${sav.map((x) => `<div class="row between small"><span>${x.emoji} ${esc(x.name.replace(' fund', ''))}</span><b class="num">${money(x.total)}</b></div>`).join('')}
+      ${sav.map((x) => `<button class="row between small go-row" data-act="filter" data-cat="${x.id}"><span>${x.emoji} ${esc(x.name.replace(' fund', ''))}</span><b class="num">${money(x.total)}</b></button>`).join('')}
     </section>
-    <section class="card mini" data-test="cc">
+    <section class="card mini tap" data-test="cc" data-act="filter" data-cat="cc">
       <h2>💳 Card due</h2>
       <p class="big2 num" data-test="cc-remaining">${money(cc.remaining)}</p>
       <p class="muted tiny">Paid ${money(cc.paid)} of ${money(cc.start)}</p>
@@ -124,9 +126,9 @@ function summaryView() {
 
   <section class="card tight" data-test="who-spent">
     <div class="card-head"><h2>👥 Who spent</h2></div>
-    ${Object.entries(m.people).sort((a, b) => b[1] - a[1]).map(([who, amt]) => `<div class="cat-mini">
-      <div class="row between"><span>${esc(who)}</span><span class="num"><b>${money(amt)}</b><span class="muted"> · ${Math.round((amt / peopleTotal) * 100)}%</span></span></div>
-      ${bar(amt, peopleTotal, 'ok')}</div>`).join('') || '<p class="empty">No spends.</p>'}
+    ${Object.entries(m.people).sort((a, b) => b[1] - a[1]).map(([who, amt]) => `<button class="cat-mini go-row" data-act="who" data-who="${esc(who)}">
+      <span class="row between"><span>${esc(who)}</span><span class="num"><b>${money(amt)}</b><span class="muted"> · ${Math.round((amt / peopleTotal) * 100)}%</span></span></span>
+      ${bar(amt, peopleTotal, 'ok')}</button>`).join('') || '<p class="empty">No spends.</p>'}
   </section>
 
   ${m.family.length ? `<section class="card tight" data-test="family">
@@ -138,18 +140,18 @@ function summaryView() {
 
   <section class="card tight">
     <div class="card-head"><h2>📊 vs last month</h2></div>
-    <div class="list">${m.rows.slice(0, 6).map((r) => `<div class="mv-row">
+    <div class="list">${m.rows.slice(0, 6).map((r) => `<button class="mv-row go-row" data-act="filter" data-cat="${r.id}">
       <span>${r.emoji} ${esc(r.name)}</span>
       <span class="num">${money(r.spent)} <span class="${r.diff > 0 ? 'over-text' : 'ok-text'} small">${r.diff > 0 ? '▲' : r.diff < 0 ? '▼' : ''} ${r.diff ? money(Math.abs(r.diff)) : '='}</span></span>
-    </div>`).join('') || '<p class="empty">Nothing to compare.</p>'}</div>
+    </button>`).join('') || '<p class="empty">Nothing to compare.</p>'}</div>
   </section>
 
   ${movers.length ? `<section class="card tight" data-test="veg-movers">
     <div class="card-head"><h2>🥬 Sabzi prices</h2><span class="muted small">vs last buy</span></div>
-    <div class="list">${movers.map(({ item, stats }) => `<div class="mv-row">
+    <div class="list">${movers.map(({ item, stats }) => `<button class="mv-row edit-row" data-act="veg-open" data-id="${item.id}">
       <span>${item.emoji} ${esc(item.en)} <span class="hi">${esc(item.hi)}</span></span>
       <span class="num">${money(stats.last.rate)}/${esc(item.unit)} <span class="${stats.change > 0 ? 'over-text' : 'ok-text'} small">${stats.change > 0 ? '▲' : '▼'} ${pct(stats.change)}</span></span>
-    </div>`).join('')}</div>
+    </button>`).join('')}</div>
   </section>` : ''}
 
   <section class="card tight">
@@ -157,9 +159,9 @@ function summaryView() {
     <div class="list">${m.biggest.map(entryRow).join('') || '<p class="empty">No spends.</p>'}</div>
   </section>
 
-  <section class="card tight">
-    <div class="row between"><span>🥛 Milk ${monthName(state.mk)}</span><span class="num"><b>${number(ml.litres)} L</b> · ${money(ml.amount)}</span></div>
-  </section>`;
+  <a class="card tight go-row milk-link" href="#/milk">
+    <span class="row between"><span>🥛 Milk ${monthName(state.mk)}</span><span class="num"><b>${number(ml.litres)} L</b> · ${money(ml.amount)}</span></span>
+  </a>`;
 }
 
 function yearView() {
@@ -182,10 +184,10 @@ function yearView() {
   </section>
   <section class="card tight">
     <div class="card-head"><h2>By category</h2><span class="muted small">total · per month</span></div>
-    <div class="list">${y.catRows.map((c) => `<div class="mv-row">
+    <div class="list">${y.catRows.map((c) => `<button class="mv-row go-row" data-act="filter" data-cat="${c.id}">
       <span>${c.emoji} ${esc(c.name)}</span>
       <span class="num"><b>${money(c.total)}</b> <span class="muted small">· ${money(c.avg)}</span></span>
-    </div>`).join('') || '<p class="empty">No spends in this year yet.</p>'}</div>
+    </button>`).join('') || '<p class="empty">No spends in this year yet.</p>'}</div>
   </section>`;
 }
 
@@ -218,14 +220,63 @@ export function bind(root, rerender) {
     else if (act === 'fy-prev') { state.fy -= 1; rerender(); }
     else if (act === 'fy-next') { state.fy += 1; rerender(); }
     else if (act === 'fam') { state.fam = t.dataset.fam || null; state.view = 'spends'; rerender(); }
+    else if (act === 'goal') goalSheet(t.dataset.id);
+    else if (act === 'veg-open') { const it = store.get('items', t.dataset.id); if (it) openVegSheet(it); }
     else if (act === 'filter') {
       state.cat = state.cat === t.dataset.cat ? null : t.dataset.cat;
       state.view = 'spends';
       rerender();
-    } else if (act === 'who') { state.who = t.dataset.who || null; rerender(); }
+    } else if (act === 'who') {
+      state.who = t.dataset.who || null;
+      if (t.closest('[data-test="who-spent"]')) state.view = 'spends';
+      rerender();
+    }
     else if (act === 'csv') {
       download(`kozy-${state.mk}.csv`, '﻿' + budget.monthCsv(state.mk), 'text/csv;charset=utf-8');
       toast(`Exported ${monthName(state.mk)} ✓`);
+    }
+  });
+}
+
+// Edit a goal (owner); others see it read-only.
+function goalSheet(id) {
+  const g = budget.goals().find((x) => x.id === id);
+  if (!g) return;
+  const owner = store.isOwner();
+  const dis = owner ? '' : 'disabled';
+  const el = openSheet(`
+    <form class="stack" data-test="goal-edit" novalidate>
+      <h2 class="sheet-title">${g.emoji || '🎯'} ${esc(g.name)}</h2>
+      <p class="small">${money(g.saved)} of ${money(g.target)}${g.daysLeft != null ? ` · ${g.daysLeft} days left` : ''}</p>
+      <div class="row gap">
+        <input class="input emo-in" name="emoji" value="${esc(g.emoji || '🎯')}" maxlength="4" aria-label="Emoji" ${dis}>
+        <input class="input grow" name="gname" value="${esc(g.name)}" aria-label="Goal name" ${dis}>
+      </div>
+      <div class="row gap">
+        <label class="field grow"><span>Target ₹</span><input class="input" name="target" type="number" inputmode="numeric" min="0" value="${g.target}" ${dis}></label>
+        <label class="field grow"><span>By</span><input class="input" name="by" type="date" value="${g.by || ''}" ${dis}></label>
+      </div>
+      <label class="field"><span>Counts money added to</span><select class="input" name="cat" ${dis}>${budget.cats().map((c) => `<option value="${c.id}" ${c.id === g.cat ? 'selected' : ''}>${c.emoji} ${esc(c.name)}</option>`).join('')}</select></label>
+      ${owner ? `<div class="row gap"><button type="button" class="btn ghost danger-text" data-del>${icon('trash')}</button>
+        <button class="btn primary grow" type="submit" data-save>Save goal</button></div>` : '<p class="muted small">Only the owner can change goals.</p>'}
+    </form>`);
+  const f = el.querySelector('form');
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const list = store.meta('goals', []).map((x) => (x.id !== id ? x : {
+      ...x, emoji: f.elements.emoji.value.trim() || '🎯', name: f.elements.gname.value.trim() || x.name,
+      target: Number(f.elements.target.value) || 0, by: f.elements.by.value || null, cat: f.elements.cat.value,
+    }));
+    await store.setMeta('goals', list);
+    closeSheet(true);
+    toast('Goal saved ✓');
+  });
+  f.querySelector('[data-del]')?.addEventListener('click', async () => {
+    closeSheet(true);
+    if (await confirmSheet({ title: `Delete goal “${esc(g.name)}”?`, body: 'The money already added stays in its category.', ok: 'Delete', danger: true })) {
+      const before = store.meta('goals', []);
+      await store.setMeta('goals', before.filter((x) => x.id !== id));
+      toast('Goal deleted', { undo: () => store.setMeta('goals', before) });
     }
   });
 }

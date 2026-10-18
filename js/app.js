@@ -31,7 +31,9 @@ function render() {
     if (current) closeSheet(true); // a sheet never stays open over another screen
     current = name;
     viewEl = document.createElement('div');
-    viewEl.className = `screen screen-${name}`;
+    viewEl.className = `screen screen-${name} enter`; // entrance animation, only when the screen changes
+    const el = viewEl;
+    setTimeout(() => el.classList.remove('enter'), 900);
     main.replaceChildren(viewEl);
     mod.bind(viewEl, rerender);
     window.scrollTo(0, 0);

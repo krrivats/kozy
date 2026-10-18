@@ -47,4 +47,5 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - [ ] User: GitHub Pages deploy (repo krrivats/kozy) + `FIREBASE_SERVICE_ACCOUNT` secret for reminders
 - [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
 - [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
-- [ ] Next: user will review the UI on the laptop and ask for modifications
+- [x] v1.3 — redesign (glass, dock with centre +, ⚙️ in headers, ring gauge, quick actions), every row tappable to edit (DECISIONS #62–67)
+- [ ] Next: push to GitHub (user creates repo) + connect the user's Firebase project
