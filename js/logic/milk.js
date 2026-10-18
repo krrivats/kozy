@@ -52,6 +52,32 @@ export function month(mk = monthKey()) {
   return { mk, days, litres, amount: Math.round(amount), delivered, skipped, billed };
 }
 
+// Milkman account, carried across months:
+//   owed = every delivered day up to today (litres × that day's rate)
+//   paid = every spend in the Milk category (payments, older monthly bills, anything you gave him)
+//   balance = owed − paid; "earlier" = what was still unpaid before this month (negative = paid ahead)
+export function ledger(t = today()) {
+  const mk = monthKey(t);
+  const days = store.list('milk').filter((d) => !d.skip && d.id <= t);
+  const cost = (d) => Number(d.litres || 0) * Number(d.rate || settings().rate);
+  const owed = days.reduce((s, d) => s + cost(d), 0);
+  const thisDays = days.filter((d) => d.id.startsWith(mk));
+  const thisMonth = thisDays.reduce((s, d) => s + cost(d), 0);
+  const payments = store.list('entries').filter((e) => e.cat === MILK_CAT && e.date <= t)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt - a.createdAt));
+  const paid = payments.reduce((s, e) => s + Number(e.amount || 0), 0);
+  return {
+    owed: Math.round(owed), paid: Math.round(paid), balance: Math.round(owed - paid),
+    thisMonth: Math.round(thisMonth), thisMonthLitres: thisDays.reduce((s, d) => s + Number(d.litres || 0), 0),
+    earlier: Math.round(owed - thisMonth - paid), payments,
+  };
+}
+
+// Record money given to the milkman (full or part). It is a spend in the Milk category.
+export async function pay(amount, date = today(), mode = 'Cash') {
+  return addEntry({ date, amount, cat: MILK_CAT, mode, note: 'Paid milkman', source: 'milk-pay' });
+}
+
 // Adds (or updates) the month's milk bill as a spend in the Milk category.
 export async function addBill(mk, amount) {
   const all = { ...store.meta('milkBilled', {}) };

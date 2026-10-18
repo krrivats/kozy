@@ -95,3 +95,15 @@ Some replace v1 decisions above (marked ♻️).
 | 65 | **Tap hints**: ✎ means the row opens an editor, › means it opens a list. Every list row is now tappable: goals (edit), who-spent, vs-last-month, year categories and savings (open those spends), sabzi movers (price history), plan rows (the item). | "Everywhere I tap, I should be able to edit." |
 | 66 | Animations only when you **change screen** (cards rise in, bars and the ring fill), never on every data change, and none when the phone asks for reduced motion. | Feels alive without being distracting or slow. |
 | 67 | A kitchen item past its run-out date says **"Due since 15 Oct"** instead of "Runs out today". | It's clearer that you should tap ✓ Finished if it's over. |
+
+---
+
+## v1.5 (18 Oct) — before going live next month
+
+| # | Decision | Why |
+|---|---|---|
+| 68 | Header shows only **your name + a real gear ⚙️** (the old icon looked like a day/night sun). Light / Dark / Auto lives in **Settings → Appearance**, saved per phone. | Your words: "only two options, my account and the settings icon". |
+| 69 | **Card due removed** (Settings and the Budget card). "Credit card payoff" stays as a normal category with its limit and the salary-day item. | Not needed; a setting nobody edits is clutter. |
+| 70 | **Milk = a running account with the milkman**: every delivered day adds litres × rate to what you owe; **Pay** records money given (full or part) as a Milk spend; anything unpaid shows as **"Earlier unpaid"** next month, plus a Home chip. Older monthly milk bills count as payments. | You pay him at month end, sometimes not the full amount. |
+| 71 | **Nothing to set up each month**: limits, bills, salary-day items and milk rate are not per-month, so they simply continue. On the 1st–5th a **New month** card says how last month ended. | "Whatever I set now should be taken for next month automatically." |
+| 72 | **Smart limits**: each limit shows your **usual spend** (last 3 months); "Set limits to my usual spend" fills them (rounded up to ₹100) and you review → Save. | Uses your own history; never changes limits without you. |

@@ -6,8 +6,8 @@ import * as milk from '../logic/milk.js';
 import { loadDemo } from '../logic/demo.js';
 import { ensureItems, items } from '../logic/stock.js';
 import { ensureBills } from '../logic/budget.js';
-import { money, esc, today, dayLabel } from '../logic/format.js';
-import { icon, toast, confirmSheet, download, bar } from '../ui.js';
+import { money, moneyShort, esc, today, dayLabel } from '../logic/format.js';
+import { icon, toast, confirmSheet, download, bar, savedTheme, applyTheme } from '../ui.js';
 import { header } from './common.js';
 import { openItemForm } from './stock.js';
 import { APP_VERSION, USE_FIREBASE } from '../config.js';
@@ -35,6 +35,8 @@ function allocLine(total, alloc) {
 function limitsBody(owner) {
   const cs = budget.cats();
   const a = budget.allocation();
+  const usual = Object.fromEntries(cs.map((c) => [c.id, budget.usual(c.id)]));
+  const hasUsual = Object.values(usual).some((v) => v > 0);
   return `<form data-form="cats" class="stack-s">
     <label class="field budget-total"><span>Monthly budget ₹ (what you plan to spend at home)</span>
       <input class="input num" name="budgetTotal" type="number" inputmode="numeric" min="0" step="500" value="${a.total}" data-test="budget-total"
@@ -44,10 +46,12 @@ function limitsBody(owner) {
     ${cs.map((c, i) => `<div class="limit-row" data-i="${i}">
       <input class="input emo-in" name="emoji" value="${esc(c.emoji)}" aria-label="Emoji" maxlength="4" ${owner ? '' : 'disabled'}>
       <input class="input grow" name="name" value="${esc(c.name)}" aria-label="Category name" ${owner ? '' : 'disabled'}>
-      <input class="input num lim" name="limit" type="number" inputmode="numeric" min="0" step="100" value="${c.limit}" aria-label="${esc(c.name)} limit" ${owner ? '' : 'disabled'}>
+      <span class="usual" title="Your usual monthly spend (last 3 months)">${usual[c.id] ? `usual ${moneyShort(usual[c.id])}` : ''}</span>
+      <input class="input num lim" name="limit" type="number" inputmode="numeric" min="0" step="100" value="${c.limit}" aria-label="${esc(c.name)} limit" data-usual="${Math.ceil(usual[c.id] / 100) * 100}" ${owner ? '' : 'disabled'}>
       ${owner ? `<button type="button" class="icon-btn" data-act="cat-del" data-i="${i}" aria-label="Delete ${esc(c.name)}">${icon('trash')}</button>` : ''}
     </div>`).join('')}
-    <p class="muted tiny">Limit 0 = no monthly limit (good for yearly bills).</p>
+    <p class="muted tiny">Limits, bills and salary-day items carry over to every new month by themselves. Limit 0 = no monthly limit.</p>
+    ${owner && hasUsual ? '<button type="button" class="btn ghost" data-act="use-usual" data-test="use-usual">💡 Set limits to my usual spend</button>' : ''}
     ${owner ? `<div class="row gap">
       <button type="button" class="btn ghost grow" data-act="cat-add">${icon('plus')} Category</button>
       <button type="submit" class="btn primary grow">Save limits</button>
@@ -132,11 +136,7 @@ export function render() {
   ${section('limits', '💰 Budget & limits', limitsBody(owner), `<span data-total>${money(budget.budgetTotal())}</span>`)}
   ${section('bills', '🔁 Bills & salary day', billsBody(owner), `${budget.bills().filter((b) => b.active).length} active`)}
   ${section('goals', '🎯 Goals', goalsBody(owner), `${budget.goals().length}`)}
-  ${section('money', '💳 Card due · 🥛 Milk', `
-    <form data-form="cc" class="row gap align-end">
-      <label class="field grow"><span>Card starting due ₹</span><input class="input" name="start" type="number" inputmode="numeric" min="0" value="${store.meta('ccStart', budget.DEFAULT_CC_START)}" ${owner ? '' : 'disabled'}></label>
-      ${owner ? '<button class="btn primary" type="submit">Save</button>' : ''}
-    </form>
+  ${section('money', '🥛 Milk', `
     <form data-form="milk" class="row gap align-end">
       <label class="field grow"><span>Milk L/day</span><input class="input" name="litres" type="number" step="0.5" min="0" inputmode="decimal" value="${ms.litres}" ${owner ? '' : 'disabled'}></label>
       <label class="field grow"><span>₹/litre</span><input class="input" name="rate" type="number" min="0" inputmode="decimal" value="${ms.rate}" ${owner ? '' : 'disabled'}></label>
@@ -169,6 +169,11 @@ export function render() {
       </div>
       ${owner ? `<button class="btn danger-outline" data-act="reset">${icon('trash')} Reset all data</button>` : ''}
     </div>`)}
+  ${section('look', '🎨 Appearance', `
+    <div class="seg" role="radiogroup" aria-label="Appearance" data-test="theme">
+      ${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${savedTheme() === k ? 'on' : ''}" data-act="theme" data-theme-v="${k}">${l}</button>`).join('')}
+    </div>
+    <p class="muted tiny">Auto follows your phone (light by day, dark at night). Saved on this phone only.</p>`, { auto: 'Auto', light: 'Light', dark: 'Dark' }[savedTheme()])}
   ${section('account', '👤 Account', `
     <p class="small"><b>${esc(store.currentUserLabel())}</b> · ${roleName}</p>
     ${fire && adapter.isSignedIn?.() ? `<p class="small muted">${esc(adapter.userEmail())}</p>
@@ -211,6 +216,15 @@ export function bind(root, rerender) {
       const id = `b-${Date.now().toString(36)}`;
       await store.setMeta('bills', [...budget.bills(), { id, name: 'New bill', emoji: '🧾', cat: 'bills', amount: 0, freq: 'monthly', remind: 3, active: false, firstDue: today() }]);
       openSections.add('bills');
+    } else if (act === 'theme') {
+      applyTheme(t.dataset.themeV);
+      toast(`Appearance: ${t.textContent} ✓`);
+      rerender();
+    } else if (act === 'use-usual') {
+      // Fill each limit with the usual spend (rounded up to ₹100); you review and tap Save.
+      root.querySelectorAll('[name="limit"]').forEach((inp) => { if (Number(inp.dataset.usual) > 0) inp.value = inp.dataset.usual; });
+      root.querySelector('[name="limit"]')?.dispatchEvent(new Event('input', { bubbles: true }));
+      toast('Filled from your usual spend — check and tap Save limits');
     } else if (act === 'check-add') {
       const id = `c-${Date.now().toString(36)}`;
       await store.setMeta('bills', [...budget.bills(), { id, group: 'checklist', name: 'New salary-day item', emoji: '✅', cat: 'buffer', amount: 0, freq: 'monthly', remind: 0, active: false, firstDue: today() }]);

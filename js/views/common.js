@@ -66,11 +66,11 @@ export function gearLink() {
 export function header(title, sub = '', right = '') {
   return `<header class="top">
     <div class="top-title"><h1>${title} ${syncDot()}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div>
-    <div class="top-right">${right}${gearLink()}</div>
+    <div class="top-right">${right}${roleBadge()}${gearLink()}</div>
   </header>`;
 }
 
 export function roleBadge() {
   const r = store.role();
-  return r === 'viewer' ? '<span class="who-chip view">View only</span>' : `<span class="who-chip">${esc(store.currentUserLabel())}</span>`;
+  return r === 'viewer' ? '<a class="who-chip view" href="#/settings">View only</a>' : `<a class="who-chip" href="#/settings" aria-label="My account">${esc(store.currentUserLabel())}</a>`;
 }

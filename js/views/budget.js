@@ -46,7 +46,6 @@ function chart(hist, limit) {
 function catsView(s) {
   const ins = budget.insights(state.mk).filter((i) => i.id !== 'usual');
   const sav = budget.savings();
-  const cc = budget.creditCard();
   const gs = budget.goals();
   return `
   ${insightsCard(ins, 2)}
@@ -71,17 +70,10 @@ function catsView(s) {
     </button>`).join('')}
   </section>` : ''}
 
-  <div class="quick2">
-    <section class="card mini" data-test="savings">
+  <section class="card mini" data-test="savings">
       <h2>🏦 Savings</h2>
       ${sav.map((x) => `<button class="row between small go-row" data-act="filter" data-cat="${x.id}"><span>${x.emoji} ${esc(x.name.replace(' fund', ''))}</span><b class="num">${money(x.total)}</b></button>`).join('')}
-    </section>
-    <section class="card mini tap" data-test="cc" data-act="filter" data-cat="cc">
-      <h2>💳 Card due</h2>
-      <p class="big2 num" data-test="cc-remaining">${money(cc.remaining)}</p>
-      <p class="muted tiny">Paid ${money(cc.paid)} of ${money(cc.start)}</p>
-    </section>
-  </div>
+  </section>
 
   <section class="card tight">
     <div class="card-head"><h2>Last 6 months</h2><span class="muted small legend"><i class="dash"></i> budget</span></div>

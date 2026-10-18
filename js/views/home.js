@@ -8,6 +8,7 @@ import { icon, logo, bar, toast, bump, openSheet, closeSheet } from '../ui.js';
 import { activityRow, syncDot, roleBadge, gearLink } from './common.js';
 import { openSpendSheet } from './spend-sheet.js';
 import { shoppingList } from '../logic/stock.js';
+import { shiftMonth, moneyShort } from '../logic/format.js';
 import { openEntry } from './edit-entry.js';
 import * as store from '../store.js';
 
@@ -24,6 +25,8 @@ function chips() {
     out.push(`<button class="nchip warn" data-act="bills" data-test="chip-bills">🔁 ${bills.length} bill${bills.length > 1 ? 's' : ''} due</button>`);
   }
   // (items to buy show on the Shop quick action instead of a chip)
+  const L = milk.ledger(t);
+  if (L.earlier > 0) out.push(`<a class="nchip warn" href="#/milk" data-test="chip-milkman">🥛 Pay milkman ${money(L.earlier)}</a>`);
   for (const g of budget.goals().slice(0, 2)) {
     out.push(`<a class="nchip" href="#/budget" data-test="chip-goal">${g.emoji || '🎯'} ${esc(g.name)} ${Math.round(g.pct * 100)}%</a>`);
   }
@@ -44,6 +47,25 @@ function quickActions() {
     <button class="qa-btn" data-act="qa-scan" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('camera')}</span><span class="qa-t">Scan bill</span></button>
     ${milkBtn}
     <a class="qa-btn ${shopN ? 'warn' : ''}" href="#/stock"><span class="qa-ic">${icon('cart')}</span><span class="qa-t">Shop${shopN ? ` · ${shopN}` : ''}</span></a>
+  </section>`;
+}
+
+// 1st–5th of the month: how last month ended, and that everything carries over by itself.
+function newMonthCard() {
+  const t = today();
+  if (Number(t.slice(8, 10)) > 5) return '';
+  const prev = shiftMonth(monthKey(t), -1);
+  const p = budget.summary(prev);
+  if (!p.spent) return '';
+  const diff = p.limit - p.spent;
+  const over = budget.cats().filter((c) => c.limit && (p.by[c.id] || 0) > c.limit).slice(0, 3);
+  return `<section class="card tight newmonth" data-test="new-month">
+    <h2>📅 New month · ${monthName(monthKey(t))}</h2>
+    <div class="nm-lines">
+      <span>${monthName(prev)}: spent <b>${money(p.spent)}</b> of ${money(p.limit)} · <b class="${diff >= 0 ? 'ok-text' : 'over-text'}">${diff >= 0 ? `${money(diff)} saved` : `${money(-diff)} over`}</b></span>
+      ${over.length ? `<span class="muted">Went over: ${over.map((c) => `${c.emoji} ${esc(c.name)} ${moneyShort(p.by[c.id])}/${moneyShort(c.limit)}`).join(' · ')}</span>` : ''}
+      <span class="muted">Same budget, limits and bills continue this month — nothing to set up.</span>
+    </div>
   </section>`;
 }
 
@@ -84,6 +106,8 @@ export function render() {
       </div>
     </div>
   </section>
+
+  ${newMonthCard()}
 
   ${quickActions()}
 

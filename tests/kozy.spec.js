@@ -343,13 +343,17 @@ test('milk log: first-run setup, tick + undo, skip, calendar, bill to Milk spend
   await expect(page.locator('[data-test="milk-litres"]')).toHaveText('7.5');
   await expect(page.locator('[data-test="milk-amount"]')).toHaveText('₹488');
 
-  await page.locator('[data-form="bill"] input[name="amount"]').fill('500');
-  await page.locator('[data-test="add-bill"]').click();
-  await expect(page.locator('[data-test="add-bill"]')).toHaveText('Update');
-  await page.locator('[data-form="bill"] input[name="amount"]').fill('520');
-  await page.locator('[data-test="add-bill"]').click();
+  // Milkman balance: what the milk cost so far = due; a part payment leaves the rest due
+  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹488');
+  await page.locator('[data-test="pay-milk"]').click();
+  await expect(page.locator('[data-test="pay-sheet"] input[name="amount"]')).toHaveValue('488');
+  await page.locator('[data-test="pay-sheet"] input[name="amount"]').fill('300');
+  await page.locator('[data-test="pay-sheet"] [data-save]').click();
+  await expect(page.locator('#toast')).toContainText('₹188 left');
+  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹188');
+  await expect(page.locator('[data-test="milk-payments"]')).toContainText('Paid milkman');
   await go(page, T, 'budget');
-  await expect(tile(page, 'Milk')).toContainText('₹520');
+  await expect(tile(page, 'Milk')).toContainText('₹300');
   await go(page, T, 'home');
   await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 3 L');
 });
@@ -377,7 +381,6 @@ test('demo data: summary, who spent, goals, activity; backup, reset, restore', a
   await go(page, T, 'budget');
   await expect(page.locator('[data-test="goals"]')).toContainText('₹4,500');
   await expect(page.locator('[data-test="savings"]')).toContainText('₹4,500');
-  await expect(page.locator('[data-test="cc-remaining"]')).toHaveText('₹1,000');
   await expect(page.locator('.chart .cb')).toHaveCount(6);
   await page.locator('[data-view="summary"]').click();
   await expect(page.locator('[data-test="who-spent"]')).toContainText('Wife');
@@ -641,4 +644,49 @@ test('guest mode: own sample copy on this device, separate from real data, exit 
   await page.locator('[data-test="guest-bar"] button').click();
   await expect(page.locator('[data-test="guest-bar"]')).toHaveCount(0);
   await expect(page.locator('[data-test="recent"]')).toContainText('Real family spend');
+});
+
+// ---------- v1.5 ----------
+test('header: name + real gear only; appearance Auto / Light / Dark saved on this phone', async ({ page }) => {
+  await fresh(page, T, 'budget');
+  await expect(page.locator('.top .who-chip')).toHaveText('Me');
+  await expect(page.locator('.top .gear-btn')).toHaveAttribute('aria-label', 'Settings');
+  await go(page, T, 'settings');
+  await openSec(page, 'look');
+  await page.locator('[data-test="theme"] [data-theme-v="dark"]').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); // remembered
+  await openSec(page, 'look');
+  await page.locator('[data-test="theme"] [data-theme-v="auto"]').click();
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', /.+/);
+  // card due is gone; the section is Milk only
+  await expect(page.locator('[data-sec="money"] summary')).toContainText('Milk');
+  await expect(page.locator('[data-sec="money"] summary')).not.toContainText('Card');
+});
+
+test('next month: new-month card on the 1st, limits from usual spend, unpaid milk carries over', async ({ page }) => {
+  await fresh(page, '2026-11-01', 'settings');
+  await openSec(page, 'data');
+  await page.locator('[data-act="demo"]').click();
+  await page.locator('.sheet [data-yes]').click();
+  await expect(page.locator('.screen-home')).toBeVisible();
+  const nm = page.locator('[data-test="new-month"]');
+  await expect(nm).toContainText('October 2026: spent');
+  await expect(nm).toContainText('Same budget, limits and bills continue');
+  // Remove October's milk payment → October's milk is unpaid and carries into November
+  await page.evaluate(async () => {
+    const store = await import('/js/store.js');
+    for (const e of store.list('entries').filter((x) => x.cat === 'milk' && x.date.startsWith('2026-10'))) await store.remove('entries', e.id);
+  });
+  await expect(page.locator('[data-test="chip-milkman"]')).toContainText('Pay milkman');
+  await go(page, '2026-11-01', 'milk');
+  await expect(page.locator('[data-test="milk-earlier"]')).toContainText('Earlier unpaid');
+  // usual spend shown next to limits; one tap fills them
+  await go(page, '2026-11-01', 'settings');
+  await openSec(page, 'limits');
+  await expect(page.locator('.limit-row .usual').first()).toContainText('usual');
+  await page.locator('[data-test="use-usual"]').click();
+  const travel = page.locator('.limit-row', { has: page.locator('input[value="Office travel"]') }).locator('input[name="limit"]');
+  expect(Number(await travel.inputValue())).not.toBe(5000);
 });
