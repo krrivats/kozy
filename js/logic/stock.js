@@ -218,8 +218,9 @@ export function allAnalyzed() {
 
 // Kitchen items finished or running low + sabzi marked "need".
 export function shoppingList() {
-  const kitchen = allAnalyzed().filter((a) => a.status === 'finished' || a.status === 'low')
-    .sort((a, b) => (a.status === 'finished' ? -1 : 0) - (b.status === 'finished' ? -1 : 0) || (a.daysLeft ?? 0) - (b.daysLeft ?? 0));
+  const kitchen = allAnalyzed().filter((a) => a.status === 'finished' || a.status === 'low' || a.item.need)
+    .map((a) => (a.status === 'finished' || a.status === 'low' ? a : { ...a, status: 'need' }))
+    .sort((a, b) => (a.status === 'finished' ? -1 : 0) - (b.status === 'finished' ? -1 : 0) || (a.daysLeft ?? 99) - (b.daysLeft ?? 99));
   const veg = items('veg').filter((v) => v.need)
     .map((v) => ({ item: v, status: 'need', lastBought: [...eventsFor(v.id)].reverse().find((e) => e.type === 'bought') || null }));
   return [...kitchen, ...veg];
@@ -298,6 +299,71 @@ export async function addItem({ en, hi, unit, cat, kind = 'kitchen', emoji, note
     kind, en, hi: hi || en, unit, cat, order,
     ...(emoji ? { emoji } : {}), ...(note ? { note } : {}), ...(lowDays ? { lowDays: Number(lowDays) } : {}),
   });
+}
+
+// ---------- Edit a purchase / finished record ----------
+// changes: {qty, unit, price, date, lastsDays, note}. The price lives in the linked spend: update, add or remove it.
+export async function updatePurchase(ev, changes) {
+  const item = store.get('items', ev.itemId) || { en: 'Item', hi: '', unit: ev.unit };
+  const next = { ...ev, ...changes };
+  delete next.price;
+  if (ev.type === 'bought' && 'price' in changes) {
+    const price = Number(changes.price) || 0;
+    const entry = ev.entryId ? store.get('entries', ev.entryId) : null;
+    const u = next.unit || item.unit;
+    const rate = Number(next.qty) > 0 && price ? ` @ ₹${Math.round(price / Number(next.qty))}/${u}` : '';
+    const note = `${item.emoji ? `${item.emoji} ` : ''}${item.en} / ${item.hi} ${next.qty} ${u}${item.kind === 'veg' ? rate : ''}${next.note ? ` · ${next.note}` : ''}`;
+    if (entry && price > 0) {
+      await store.put('entries', { ...entry, amount: price, date: next.date, note });
+    } else if (entry && price <= 0) {
+      await store.remove('entries', entry.id);
+      next.entryId = null;
+    } else if (!entry && price > 0) {
+      const e = await addEntry({ date: next.date, amount: price, cat: GROCERY_CAT, mode: 'UPI', note, source: 'stock' });
+      next.entryId = e.id;
+    }
+  }
+  if (Number(next.lastsDays) > 0) next.lastsDays = Number(next.lastsDays); else delete next.lastsDays;
+  if (!next.note) delete next.note;
+  return store.replace('stock', next);
+}
+
+// ---------- Monthly use + next month's plan ----------
+// From purchases in the last 90 days: how much of this item the family uses per month, and what it costs.
+export function monthlyUse(item, t = today()) {
+  const from = addDays(t, -90);
+  const buys = eventsFor(item.id).filter((e) => e.type === 'bought' && e.date >= from && Number(e.qty) > 0);
+  if (!buys.length) return null;
+  const qty = buys.reduce((s, e) => s + Number(e.qty), 0);
+  const priced = buys.filter((e) => priceOf(e) > 0);
+  const rate = priced.length ? priced.reduce((s, e) => s + priceOf(e), 0) / priced.reduce((s, e) => s + Number(e.qty), 0) : 0;
+  // The period these purchases cover: from the first one to today, plus one typical gap (the last pack is still in use).
+  const gaps = buys.slice(1).map((e, i) => diffDays(buys[i].date, e.date)).filter((g) => g > 0);
+  const gap = gaps.length ? gaps.reduce((s, g) => s + g, 0) / gaps.length : 30;
+  const span = Math.min(90, Math.max(30, diffDays(buys[0].date, t) + gap));
+  const perMonth = (qty / span) * 30;
+  const last = buys[buys.length - 1];
+  const pack = Number(last.qty) || 1;
+  const packs = Math.max(1, Math.ceil(perMonth / pack - 0.15)); // allow 15% slack before adding a pack
+  return {
+    item, unit: last.unit || item.unit, perMonth, perWeek: perMonth / 4.33, rate, costPerMonth: perMonth * rate,
+    buys: buys.length, pack, packs, suggestQty: packs * pack, suggestCost: packs * pack * rate,
+  };
+}
+
+export function monthlyPlan(t = today()) {
+  const rows = store.list('items').map((it) => monthlyUse(it, t)).filter(Boolean);
+  const kitchen = rows.filter((r) => kindOf(r.item) === 'kitchen').sort((a, b) => b.suggestCost - a.suggestCost);
+  const veg = rows.filter((r) => kindOf(r.item) === 'veg').sort((a, b) => b.costPerMonth - a.costPerMonth);
+  return {
+    kitchen, veg,
+    kitchenTotal: kitchen.reduce((s, r) => s + r.suggestCost, 0),
+    vegTotal: veg.reduce((s, r) => s + r.costPerMonth, 0),
+  };
+}
+
+export async function setNeed(item, need) {
+  return store.put('items', { ...item, need: !!need });
 }
 
 // Sabzi price movers for the monthly summary: biggest change vs previous purchase.

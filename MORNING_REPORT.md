@@ -10,6 +10,23 @@
 
 ---
 
+## 🆕 v1.2 (18 Oct) — "minimum entries, maximum results"
+| | What | Where |
+|---|---|---|
+| ✏️ | **Edit any entry**: tap a Recent row, a "Today:" pill, or any line in an item's / sabzi's history. Fix qty, unit, ₹, lasts-about, remark or date, or delete it (with Undo). Changing a price also fixes its Groceries spend. | Home · Stock · Sabzi |
+| ✅ | **Salary-day checklist** on the 1st: Festival ₹1,500 · Emergency ₹1,500 · Card ₹3,000. ✓ Done / ✕ Skip. | Home chip · Settings → Bills & salary day |
+| 💰 | **Budget manager**: your own monthly budget + "given to categories / left to assign", live while you type | Settings → Budget & limits |
+| 📅 | **Year view** (April–March) with 12-month chart and per-category total + monthly average | Budget → Year |
+| 💡 | **Insights**: pace for the month, categories above/below your usual by this day, your usual monthly spend | Budget → Overview / Summary |
+| 🧺 | **Monthly plan**: how much of each item you use per month and a suggested buy for next month (whole packs) with ₹. "All to list" adds it to shopping. | Stock → 📅 Plan |
+| 👪 | **Family spends**: write a name in the note ("medicine papa 450") and Summary shows ₹ per person. Tap a name to see those spends. | Budget → Summary · Settings → Family names |
+| 📸 | **Bill photo scan**: 📷 in the + sheet → photo → Kozy reads it on the device (free) → you tick and fix lines → saved as purchases and Groceries spends | + button |
+
+**Tests:** 32 app tests pass, twice in a row. One of them reads a real bill image with the scanner.
+**Limit:** the free scanner reads **printed English bills** well. Handwritten or Hindi bills may need fixing in the review list.
+
+---
+
 ## 1. What is done ✅ / not done ❌ / known bugs 🐞
 
 ### ✅ New tonight (v1.1)

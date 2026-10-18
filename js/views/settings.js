@@ -7,7 +7,7 @@ import { loadDemo } from '../logic/demo.js';
 import { ensureItems, items } from '../logic/stock.js';
 import { ensureBills } from '../logic/budget.js';
 import { money, esc, today, dayLabel } from '../logic/format.js';
-import { icon, toast, confirmSheet, download } from '../ui.js';
+import { icon, toast, confirmSheet, download, bar } from '../ui.js';
 import { header } from './common.js';
 import { openItemForm } from './stock.js';
 import { APP_VERSION, USE_FIREBASE } from '../config.js';
@@ -22,9 +22,25 @@ function section(key, title, body, extra = '') {
   </details>`;
 }
 
+function allocLine(total, alloc) {
+  const left = total - alloc;
+  const lvl = left < 0 ? 'over' : left === 0 ? 'ok' : 'warn';
+  return `<div class="alloc" data-alloc>
+    <div class="row between small"><span>Given to categories <b>${money(alloc)}</b></span>
+      <span class="${lvl === 'over' ? 'over-text' : lvl === 'ok' ? 'ok-text' : ''}">${left === 0 ? 'All assigned ✓' : left > 0 ? `${money(left)} left to assign` : `${money(-left)} over budget`}</span></div>
+    ${bar(alloc, total, lvl === 'over' ? 'over' : 'ok')}
+  </div>`;
+}
+
 function limitsBody(owner) {
   const cs = budget.cats();
+  const a = budget.allocation();
   return `<form data-form="cats" class="stack-s">
+    <label class="field budget-total"><span>Monthly budget ₹ (what you plan to spend at home)</span>
+      <input class="input num" name="budgetTotal" type="number" inputmode="numeric" min="0" step="500" value="${a.total}" data-test="budget-total"
+        data-auto="${store.meta('budgetTotal', 0) ? '0' : '1'}" ${owner ? '' : 'disabled'}></label>
+    <p class="muted tiny">Until you type a budget here it simply follows the total of your category limits.</p>
+    ${allocLine(a.total, a.alloc)}
     ${cs.map((c, i) => `<div class="limit-row" data-i="${i}">
       <input class="input emo-in" name="emoji" value="${esc(c.emoji)}" aria-label="Emoji" maxlength="4" ${owner ? '' : 'disabled'}>
       <input class="input grow" name="name" value="${esc(c.name)}" aria-label="Category name" ${owner ? '' : 'disabled'}>
@@ -47,7 +63,7 @@ function billsBody(owner) {
       return `<details class="bill-item ${b.active ? '' : 'paused'}" data-bill="${b.id}">
         <summary>
           <span class="emo-badge">${b.emoji || '🧾'}</span>
-          <span class="grow"><b>${esc(b.name)}</b>
+          <span class="grow"><b>${esc(b.name)}</b>${b.group === 'checklist' ? ' <span class="tag">salary day</span>' : ''}
             <span class="muted small block">${b.active ? `${b.amount ? money(b.amount) : '₹ —'} · ${esc(budget.FREQS[b.freq]?.label || '')}${b.freq === 'days' ? ` (${b.everyDays})` : ''} · next ${dayLabel(due)}` : 'Paused · tap to set up'}</span></span>
         </summary>
         <form class="stack-s bill-form" data-form="bill" data-id="${b.id}">
@@ -73,7 +89,10 @@ function billsBody(owner) {
         </form>
       </details>`;
     }).join('')}
-    ${owner ? `<button type="button" class="btn ghost" data-act="bill-add">${icon('plus')} Add bill</button>` : ''}
+    ${owner ? `<div class="row gap">
+      <button type="button" class="btn ghost grow" data-act="bill-add">${icon('plus')} Bill</button>
+      <button type="button" class="btn ghost grow" data-act="check-add">${icon('plus')} Salary-day item</button>
+    </div>` : ''}
   </div>`;
 }
 
@@ -110,8 +129,8 @@ export function render() {
   return `
   ${header('Settings', `Budget ${money(budget.totalLimit())} / month`)}
 
-  ${section('limits', '💰 Monthly limits', limitsBody(owner), `<span data-total>${money(budget.totalLimit())}</span>`)}
-  ${section('bills', '🔁 Bills & repeats', billsBody(owner), `${budget.bills().filter((b) => b.active).length} active`)}
+  ${section('limits', '💰 Budget & limits', limitsBody(owner), `<span data-total>${money(budget.budgetTotal())}</span>`)}
+  ${section('bills', '🔁 Bills & salary day', billsBody(owner), `${budget.bills().filter((b) => b.active).length} active`)}
   ${section('goals', '🎯 Goals', goalsBody(owner), `${budget.goals().length}`)}
   ${section('money', '💳 Card due · 🥛 Milk', `
     <form data-form="cc" class="row gap align-end">
@@ -123,6 +142,12 @@ export function render() {
       <label class="field grow"><span>₹/litre</span><input class="input" name="rate" type="number" min="0" inputmode="decimal" value="${ms.rate}" ${owner ? '' : 'disabled'}></label>
       ${owner ? '<button class="btn primary" type="submit">Save</button>' : ''}
     </form>`)}
+  ${section('family', '👪 Family names', `
+    <form data-form="family" class="stack-s">
+      <input class="input" name="family" value="${esc(budget.familyNames().join(', '))}" aria-label="Family names" ${owner ? '' : 'disabled'}>
+      <p class="muted tiny">Write any of these names in a spend's note (e.g. “medicine papa 450”) and Budget → Summary shows how much went to each person.</p>
+      ${owner ? '<button class="btn primary" type="submit">Save names</button>' : ''}
+    </form>`, `${budget.familyNames().length}`)}
   ${section('items', '🧺 Items', `
     <div class="row gap">
       ${store.canWrite() ? `<button class="btn ghost grow" data-act="item-add">${icon('plus')} Kitchen item</button>
@@ -186,6 +211,10 @@ export function bind(root, rerender) {
       const id = `b-${Date.now().toString(36)}`;
       await store.setMeta('bills', [...budget.bills(), { id, name: 'New bill', emoji: '🧾', cat: 'bills', amount: 0, freq: 'monthly', remind: 3, active: false, firstDue: today() }]);
       openSections.add('bills');
+    } else if (act === 'check-add') {
+      const id = `c-${Date.now().toString(36)}`;
+      await store.setMeta('bills', [...budget.bills(), { id, group: 'checklist', name: 'New salary-day item', emoji: '✅', cat: 'buffer', amount: 0, freq: 'monthly', remind: 0, active: false, firstDue: today() }]);
+      openSections.add('bills');
     } else if (act === 'bill-del') {
       const b = budget.bills().find((x) => x.id === t.dataset.id);
       if (await confirmSheet({ title: `Delete ${esc(b.name)}?`, body: 'Past payments stay in the budget.', ok: 'Delete', danger: true })) {
@@ -244,10 +273,16 @@ export function bind(root, rerender) {
   });
 
   root.addEventListener('input', (ev) => {
-    if (ev.target.name === 'limit') {
+    if (ev.target.name === 'limit' || ev.target.name === 'budgetTotal') {
       const sum = [...root.querySelectorAll('[name="limit"]')].reduce((s, i) => s + (Number(i.value) || 0), 0);
-      const el = root.querySelector('[data-total]');
-      if (el) el.textContent = money(sum);
+      const bt = root.querySelector('[name="budgetTotal"]');
+      if (bt && ev.target === bt) bt.dataset.auto = '0'; // you typed your own budget
+      if (bt && bt.dataset.auto === '1') bt.value = sum; // still automatic: follow the limits
+      const total = Number(bt?.value) || sum;
+      const el = root.querySelector('[data-alloc]');
+      if (el) el.outerHTML = allocLine(total, sum);
+      const t = root.querySelector('[data-total]');
+      if (t) t.textContent = money(total);
     }
   });
 
@@ -259,7 +294,10 @@ export function bind(root, rerender) {
       const rows = readRows(f, ['emoji', 'name', 'limit']);
       const cs = budget.cats().map((c, i) => ({ ...c, emoji: rows[i].emoji.trim() || '•', name: rows[i].name.trim() || c.name, limit: Number(rows[i].limit) || 0 }));
       await store.setMeta('cats', cs);
-      toast(`Limits saved · ${money(budget.totalLimit())}/month ✓`);
+      const bt = f.elements.budgetTotal;
+      await store.setMeta('budgetTotal', bt.dataset.auto === '1' ? 0 : Number(bt.value) || 0);
+      const a = budget.allocation();
+      toast(`Budget ${money(a.total)} saved${a.left ? ` · ${a.left > 0 ? `${money(a.left)} not assigned` : `${money(-a.left)} over`}` : ' ✓'}`);
     } else if (kind === 'bill') {
       const id = f.dataset.id;
       const due = f.elements.due.value || today();
@@ -278,6 +316,10 @@ export function bind(root, rerender) {
       if (!g.name || !g.target) { toast('Enter goal name and amount', 'err'); return; }
       await store.setMeta('goals', [...store.meta('goals', []), g]);
       toast(`Goal “${g.name}” added ✓`);
+    } else if (kind === 'family') {
+      const names = f.elements.family.value.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
+      await store.setMeta('family', [...new Set(names)]);
+      toast(`${names.length} family names saved ✓`);
     } else if (kind === 'cc') {
       await store.setMeta('ccStart', Number(f.start.value) || 0);
       toast('Card due saved ✓');

@@ -5,6 +5,7 @@ import * as store from '../store.js';
 import { money, number, dayLabel, today, esc, relDay, pct } from '../logic/format.js';
 import { icon, openSheet, closeSheet, toast, confirmSheet, shareText, bump } from '../ui.js';
 import { header } from './common.js';
+import { editPurchaseSheet } from './edit-entry.js';
 
 // Folding: "In stock" / "Not tracked" fold only when something needs attention (low / finished) above them.
 const state = { tab: 'kitchen', q: '', open: {} };
@@ -95,7 +96,7 @@ function todayStrip() {
   if (!list.length) return '';
   return `<section class="today-strip" data-test="bought-today">
     <span class="muted small">🛍️ Today:</span>
-    ${list.map(({ ev, item }) => `<span class="pill soft">${item.emoji ? `${item.emoji} ` : ''}${esc(item.en)} ${number(ev.qty)} ${esc(ev.unit)}<span class="muted"> · ${esc(ev.by || 'Me')}</span></span>`).join('')}
+    ${list.map(({ ev, item }) => `<button class="pill soft" data-act="edit-ev" data-id="${ev.id}">${item.emoji ? `${item.emoji} ` : ''}${esc(item.en)} ${number(ev.qty)} ${esc(ev.unit)}<span class="muted"> · ${esc(ev.by || 'Me')}</span></button>`).join('')}
   </section>`;
 }
 
@@ -117,12 +118,14 @@ export function render() {
     <div class="seg tabs2" role="tablist">
       <button class="${state.tab === 'kitchen' ? 'on' : ''}" data-act="tab" data-tab="kitchen" role="tab">🧺 Kitchen</button>
       <button class="${state.tab === 'veg' ? 'on' : ''}" data-act="tab" data-tab="veg" role="tab">🥬 Sabzi</button>
+      <button class="${state.tab === 'plan' ? 'on' : ''}" data-act="tab" data-tab="plan" role="tab">📅 Plan</button>
     </div>
-    <label class="search-box">${icon('search')}
+    <label class="search-box" ${state.tab === 'plan' ? 'hidden' : ''}>${icon('search')}
       <input class="search-in" type="search" placeholder="Search item (atta, pyaz, आलू)…" value="${esc(state.q)}" data-search aria-label="Search items" autocomplete="off">
     </label>
   </div>
 
+  ${state.tab === 'plan' ? planView() : `
   ${q && w ? `<button class="add-new" data-act="add-new" data-test="add-new">${icon('plus')} Add “${esc(q)}” as new ${state.tab === 'veg' ? 'sabzi' : 'item'}</button>` : ''}
   ${noHits ? '<p class="empty">No item found.</p>' : ''}
 
@@ -138,7 +141,47 @@ export function render() {
       const list = veg.filter((v) => (v.cat || 'Sabzi') === c);
       return list.length ? `<h3 class="mini-title">${c === 'Fruits' ? '🍎 Fruits' : '🥬 Sabzi'}</h3><div class="vgrid">${list.map(vegTile).join('')}</div>` : '';
     }).join('')}
-  </div>`}`;
+  </div>`}`}`;
+}
+
+// 📅 Plan: what the family uses per month (from the last 3 months of purchases) and what to buy next month.
+const qtyTxt = (n, unit) => number(['g', 'ml'].includes(unit) ? Math.round(n) : Math.round(n * 10) / 10);
+
+function planView() {
+  const p = stock.monthlyPlan();
+  const w = store.canWrite();
+  if (!p.kitchen.length && !p.veg.length) {
+    return '<p class="empty">Buy a few things first. After a few weeks Kozy shows how much you use per month and what to buy next month.</p>';
+  }
+  const kRow = (r) => `<div class="plan-row" data-plan="${r.item.id}">
+      <span class="grow"><b>${esc(r.item.en)}</b> <span class="hi">${esc(r.item.hi)}</span>
+        <span class="muted small block">uses ${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · buy ${r.packs} × ${number(r.pack)} ${esc(r.unit)}</span></span>
+      <span class="num plan-amt">${r.rate ? money(r.suggestCost) : '—'}</span>
+      ${w ? `<button class="icon-btn ${r.item.need ? 'on' : ''}" data-act="plan-need" data-id="${r.item.id}" aria-label="${r.item.need ? 'Remove from' : 'Add to'} shopping list">${icon(r.item.need ? 'check' : 'plus')}</button>` : ''}
+    </div>`;
+  const vRow = (r) => `<div class="plan-row" data-plan="${r.item.id}">
+      <span class="grow">${r.item.emoji || '🥬'} <b>${esc(r.item.en)}</b>
+        <span class="muted small block">${qtyTxt(r.perMonth, r.unit)} ${esc(r.unit)}/month · ~${qtyTxt(r.perWeek, r.unit)} ${esc(r.unit)}/week${r.rate ? ` · avg ${money(r.rate)}/${esc(r.unit)}` : ''}</span></span>
+      <span class="num plan-amt">${r.rate ? money(r.costPerMonth) : '—'}</span>
+    </div>`;
+  return `
+  <section class="card tight" data-test="plan">
+    <div class="sum3">
+      <div><span class="k">Kitchen / month</span><span class="v">${money(p.kitchenTotal)}</span></div>
+      <div><span class="k">Sabzi / month</span><span class="v">${money(p.vegTotal)}</span></div>
+      <div><span class="k">Total</span><span class="v">${money(p.kitchenTotal + p.vegTotal)}</span></div>
+    </div>
+    <p class="muted tiny">From your purchases in the last 3 months. Suggested buys are rounded to the pack size you usually buy.</p>
+  </section>
+  <section class="card tight">
+    <div class="card-head"><h2>🧺 Next month's kitchen buy</h2>
+      ${w ? '<button class="btn small primary" data-act="plan-all">All to list</button>' : ''}</div>
+    <div class="list">${p.kitchen.map(kRow).join('')}</div>
+  </section>
+  ${p.veg.length ? `<section class="card tight">
+    <div class="card-head"><h2>🥬 Sabzi per month</h2></div>
+    <div class="list">${p.veg.map(vRow).join('')}</div>
+  </section>` : ''}`;
 }
 
 // ---------- sheets ----------
@@ -279,8 +322,8 @@ function vegSheet(item) {
         const prevEv = evs[i + 1];
         const prevRate = prevEv && stock.priceOf(prevEv) && prevEv.qty ? stock.priceOf(prevEv) / prevEv.qty : 0;
         const tr = rate && prevRate ? (rate > prevRate * 1.02 ? '<span class="over-text">▲</span>' : rate < prevRate * 0.98 ? '<span class="ok-text">▼</span>' : '') : '';
-        return `<div class="hist-row"><span class="grow">${rate ? `<b>${money(rate)}/${esc(e.unit)}</b> ${tr}` : 'No price'} · ${number(e.qty)} ${esc(e.unit)}${p ? ` = ${money(p)}` : ''}
-          <span class="muted small block">${dayLabel(e.date)} · ${esc(e.by || 'Me')}${e.note ? ` · ${esc(e.note)}` : ''}</span></span>
+        return `<div class="hist-row"><button type="button" class="grow hist-edit" data-edit-ev="${e.id}">${rate ? `<b>${money(rate)}/${esc(e.unit)}</b> ${tr}` : 'No price'} · ${number(e.qty)} ${esc(e.unit)}${p ? ` = ${money(p)}` : ''}
+          <span class="muted small block">${dayLabel(e.date)} · ${esc(e.by || 'Me')}${e.note ? ` · ${esc(e.note)}` : ''}</span></button>
           ${w ? `<button type="button" class="icon-btn" data-del-ev="${e.id}" aria-label="Delete this record">${icon('trash')}</button>` : ''}</div>`;
       }).join('') : '<p class="empty">No purchases yet.</p>'}</div>
       ${w ? '<button type="button" class="btn ghost" data-edit>Edit item</button>' : ''}
@@ -324,6 +367,10 @@ function vegSheet(item) {
 }
 
 function wireDeletes(el, reopen) {
+  el.querySelectorAll('[data-edit-ev]').forEach((b) => b.addEventListener('click', () => {
+    const ev = store.get('stock', b.dataset.editEv);
+    if (ev) editPurchaseSheet(ev, { onDone: reopen });
+  }));
   el.querySelectorAll('[data-del-ev]').forEach((b) => b.addEventListener('click', async () => {
     const ev = store.get('stock', b.dataset.delEv);
     closeSheet(true);
@@ -411,8 +458,8 @@ function detailSheet(item) {
         const p = stock.priceOf(e);
         return `<div class="hist-row">
         <span class="dot ${e.type}"></span>
-        <span class="grow">${e.type === 'bought' ? `Bought ${number(e.qty)} ${esc(e.unit || item.unit)}${p ? ` · ${money(p)}` : ''}${e.lastsDays ? ` · ~${e.lastsDays}d` : ''}` : 'Finished'}
-          <span class="muted small block">${dayLabel(e.date)} · ${esc(e.by || 'Me')}${e.note ? ` · ${esc(e.note)}` : ''}</span></span>
+        <button class="grow hist-edit" data-edit-ev="${e.id}">${e.type === 'bought' ? `Bought ${number(e.qty)} ${esc(e.unit || item.unit)}${p ? ` · ${money(p)}` : ''}${e.lastsDays ? ` · ~${e.lastsDays}d` : ''}` : 'Finished'}
+          <span class="muted small block">${dayLabel(e.date)} · ${esc(e.by || 'Me')}${e.note ? ` · ${esc(e.note)}` : ''}</span></button>
         ${w ? `<button class="icon-btn" data-del-ev="${e.id}" aria-label="Delete this record">${icon('trash')}</button>` : ''}
       </div>`;
       }).join('') : '<p class="empty">No history yet.</p>'}
@@ -489,6 +536,15 @@ export function bind(root, rerender) {
     const item = t.dataset.id ? store.get('items', t.dataset.id) : null;
     if (act === 'bought') { if (store.canWrite()) boughtSheet(item); else detailSheet(item); }
     else if (act === 'veg') vegSheet(item);
+    else if (act === 'edit-ev') { const ev2 = store.get('stock', t.dataset.id); if (ev2) editPurchaseSheet(ev2); }
+    else if (act === 'plan-need') {
+      await stock.setNeed(item, !item.need);
+      toast(item.need ? `${item.en} removed from list` : `${item.en} added to shopping list ✓`);
+    } else if (act === 'plan-all') {
+      const p = stock.monthlyPlan();
+      for (const r of p.kitchen) if (!r.item.need) await stock.setNeed(r.item, true);
+      toast(`${p.kitchen.length} items added to the shopping list ✓`);
+    }
     else if (act === 'finished') {
       bump(t);
       const ev2 = await stock.finished(item);

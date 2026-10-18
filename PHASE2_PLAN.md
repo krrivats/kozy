@@ -33,3 +33,11 @@ Enforced in `firestore.rules`, not only hidden on screen.
 
 ## ❌ Not doing
 Shop name, gas cylinder tracker, khata/udhaar, Face ID/fingerprint, voice add, pin favourites, WhatsApp summary, separate Hindi screen, weekly grocery view ⚙️, year summary ⚙️.
+
+---
+
+# v1.2 — agreed 18 Oct ("minimum entries, maximum results")
+✅ Edit any entry (stock, sabzi, milk, spends, from Recent) · ✅ Salary-day checklist · ✅ Budget manager (budget vs allocated)
+· ✅ Year view + month view · ✅ Smart insights (usual spend, pace) · ✅ Monthly use per item + next month's buy suggestion
+· ✅ Family spend from names in notes · ✅ Bill photo scan · compact + mobile first.
+❌ Not doing: cash in hand, UPI paste, leftover to savings, EMI tracker, maintenance reminders, document expiry.

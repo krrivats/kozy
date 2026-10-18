@@ -18,7 +18,7 @@ service cloud.firestore {
     function canAdd() { return isOwner() || isMember(); }
     // meta keys that only the owner may change
     function isSetupKey(key) {
-      return key in ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo'];
+      return key in ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo', 'budgetTotal', 'family', 'checklistSeeded'];
     }
 
     // The ONE shared household document

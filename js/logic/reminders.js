@@ -8,7 +8,12 @@ import { today, dayLabel } from './format.js';
 export function reminders(t = today(), slot = 'all') {
   const out = [];
   if (slot !== 'evening') {
-    for (const b of dueBills(t)) {
+    const due = dueBills(t);
+    const check = due.filter((b) => b.group === 'checklist');
+    if (check.length) {
+      out.push({ id: 'checklist', kind: 'checklist', emoji: '✅', title: `Salary-day checklist: ${check.length} to do`, href: '#/home' });
+    }
+    for (const b of due.filter((x) => x.group !== 'checklist')) {
       const when = b.daysTo < 0 ? `overdue since ${dayLabel(b.due)}` : b.daysTo === 0 ? 'due today' : `due in ${b.daysTo} day${b.daysTo === 1 ? '' : 's'}`;
       out.push({ id: `bill-${b.id}`, kind: 'bill', emoji: b.emoji || '🧾', title: `${b.name} ${when}`, amount: b.amount, href: '#/home' });
     }
@@ -30,6 +35,7 @@ export function pushMessage(list) {
   const bills = list.filter((r) => r.kind === 'bill').length;
   const parts = [];
   if (bills) parts.push(`${bills} bill${bills > 1 ? 's' : ''} due`);
+  if (list.some((r) => r.kind === 'checklist')) parts.push('salary-day checklist');
   if (list.some((r) => r.kind === 'stock')) parts.push('items to buy');
   if (list.some((r) => r.kind === 'milk')) parts.push('milk not ticked');
   return {

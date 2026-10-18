@@ -13,7 +13,7 @@ import { USE_FIREBASE, EMULATOR, LOCAL_USER } from './config.js';
 export const COLLECTIONS = ['entries', 'items', 'stock', 'milk', 'meta'];
 
 // Setup keys only the owner may change. Members may write the other meta keys (bill paid state, milk bill).
-export const OWNER_META = ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo'];
+export const OWNER_META = ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo', 'budgetTotal', 'family', 'checklistSeeded'];
 
 let adapter = null;
 const cache = Object.fromEntries(COLLECTIONS.map((c) => [c, new Map()]));
@@ -56,8 +56,12 @@ export async function loadData() {
   emit('*');
 }
 
-// Fill the cache without an adapter (used by the reminder script in Node).
+// Fill the cache without an adapter (used by the reminder script and the Node unit tests).
+// Writes then only change memory.
 export function hydrate(data) {
+  if (!adapter) {
+    adapter = { name: 'memory', role: () => 'owner', userLabel: () => LOCAL_USER.label, write: async () => {}, delete: async () => {}, replaceAll: async () => {} };
+  }
   fill(data);
 }
 

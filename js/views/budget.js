@@ -8,7 +8,14 @@ import { icon, bar, download, toast } from '../ui.js';
 import { entriesGrouped, monthSwitch, header, entryRow } from './common.js';
 import { openSpendSheet } from './spend-sheet.js';
 
-const state = { mk: monthKey(), cat: null, who: null, view: 'cats' };
+const state = { mk: monthKey(), cat: null, who: null, view: 'cats', fy: budget.fyOf(), fam: null };
+
+function insightsCard(list, max = 9) {
+  if (!list.length) return '';
+  return `<section class="card tight insights" data-test="insights">
+    ${list.slice(0, max).map((i) => `<p class="ins ${i.level}">💡 ${esc(i.text)}</p>`).join('')}
+  </section>`;
+}
 
 function chart(hist, limit) {
   const W = 320, H = 110, padB = 18, padT = 14;
@@ -35,10 +42,12 @@ function chart(hist, limit) {
 }
 
 function catsView(s) {
+  const ins = budget.insights(state.mk).filter((i) => i.id !== 'usual');
   const sav = budget.savings();
   const cc = budget.creditCard();
   const gs = budget.goals();
   return `
+  ${insightsCard(ins, 2)}
   <section class="cat-grid2" data-test="cats">
     ${budget.cats().map((c) => {
       const spent = s.by[c.id] || 0;
@@ -81,7 +90,8 @@ function catsView(s) {
 function spendsView() {
   const all = budget.entriesFor(state.mk);
   const people = [...new Set(all.map((e) => e.by || 'Me'))];
-  const shown = all.filter((e) => (!state.cat || e.cat === state.cat) && (!state.who || (e.by || 'Me') === state.who));
+  const shown = all.filter((e) => (!state.cat || e.cat === state.cat) && (!state.who || (e.by || 'Me') === state.who)
+    && (!state.fam || budget.mentionsName(e.note, state.fam)));
   const total = shown.reduce((s, e) => s + Number(e.amount), 0);
   return `
   <div class="filters">
@@ -90,6 +100,7 @@ function spendsView() {
       ${people.map((p) => `<button class="${state.who === p ? 'on' : ''}" data-act="who" data-who="${esc(p)}">${esc(p)}</button>`).join('')}
     </div>
     ${state.cat ? `<button class="chip-btn" data-act="filter" data-cat="${state.cat}">${budget.cat(state.cat).emoji} ${esc(budget.cat(state.cat).name)} ${icon('x')}</button>` : ''}
+    ${state.fam ? `<button class="chip-btn" data-act="fam" data-fam="">👪 ${esc(state.fam)} ${icon('x')}</button>` : ''}
   </div>
   <p class="muted small total-line">${shown.length} spends · <b>${money(total)}</b></p>
   <div data-test="entries">${entriesGrouped(shown)}</div>`;
@@ -100,7 +111,9 @@ function summaryView() {
   const ml = milk.month(state.mk);
   const movers = vegMovers(5);
   const peopleTotal = Object.values(m.people).reduce((s, v) => s + v, 0) || 1;
+  const famTotal = m.family.reduce((s, f) => s + f.total, 0) || 1;
   return `
+  ${insightsCard(budget.insights(state.mk))}
   <section class="card tight" data-test="summary">
     <div class="sum3">
       <div><span class="k">Spent</span><span class="v">${money(m.spent)}</span></div>
@@ -115,6 +128,13 @@ function summaryView() {
       <div class="row between"><span>${esc(who)}</span><span class="num"><b>${money(amt)}</b><span class="muted"> · ${Math.round((amt / peopleTotal) * 100)}%</span></span></div>
       ${bar(amt, peopleTotal, 'ok')}</div>`).join('') || '<p class="empty">No spends.</p>'}
   </section>
+
+  ${m.family.length ? `<section class="card tight" data-test="family">
+    <div class="card-head"><h2>👪 Family</h2><span class="muted small">names in notes</span></div>
+    ${m.family.map((f) => `<button class="mv-row fam-row" data-act="fam" data-fam="${esc(f.name)}">
+      <span>${esc(f.name)} <span class="muted small">· ${f.count}</span></span><span class="num"><b>${money(f.total)}</b></span>
+    </button>`).join('')}
+  </section>` : ''}
 
   <section class="card tight">
     <div class="card-head"><h2>📊 vs last month</h2></div>
@@ -142,17 +162,44 @@ function summaryView() {
   </section>`;
 }
 
+function yearView() {
+  const y = budget.yearSummary(state.fy);
+  const hist = y.months;
+  return `
+  <div class="month-switch">
+    <button class="icon-btn" data-act="fy-prev" aria-label="Previous year">${icon('left')}</button>
+    <span class="month-label" data-test="fy">${y.label} <span class="muted small">Apr–Mar</span></span>
+    <button class="icon-btn" data-act="fy-next" aria-label="Next year">${icon('right')}</button>
+  </div>
+  <section class="card tight" data-test="year">
+    <div class="sum3">
+      <div><span class="k">Spent</span><span class="v">${money(y.total)}</span></div>
+      <div><span class="k">Avg / month</span><span class="v">${money(y.avg)}</span></div>
+      <div><span class="k">Budget / month</span><span class="v">${money(y.budget)}</span></div>
+    </div>
+    ${chart(hist.map((h) => ({ ...h, label: h.label.slice(0, 1) })), y.budget)}
+    ${y.highest?.spent ? `<p class="muted tiny">Highest: ${monthName(y.highest.mk)} · ${money(y.highest.spent)} · ${y.counted} month${y.counted > 1 ? 's' : ''} with spends</p>` : ''}
+  </section>
+  <section class="card tight">
+    <div class="card-head"><h2>By category</h2><span class="muted small">total · per month</span></div>
+    <div class="list">${y.catRows.map((c) => `<div class="mv-row">
+      <span>${c.emoji} ${esc(c.name)}</span>
+      <span class="num"><b>${money(c.total)}</b> <span class="muted small">· ${money(c.avg)}</span></span>
+    </div>`).join('') || '<p class="empty">No spends in this year yet.</p>'}</div>
+  </section>`;
+}
+
 export function render() {
   const s = budget.summary(state.mk);
-  const views = [['cats', 'Categories'], ['spends', 'Spends'], ['summary', 'Summary']];
+  const views = [['cats', 'Overview'], ['spends', 'Spends'], ['summary', 'Summary'], ['year', 'Year']];
   return `
   ${header('Budget', `${money(s.spent)} of ${money(s.limit)} · ${money(s.left)} left`,
     `<button class="btn small ghost" data-act="csv" aria-label="Export month to CSV">${icon('download')} CSV</button>`)}
-  ${monthSwitch(state.mk)}
   <div class="seg views" role="tablist">
     ${views.map(([k, l]) => `<button class="${state.view === k ? 'on' : ''}" data-act="view" data-view="${k}" role="tab" aria-selected="${state.view === k}">${l}</button>`).join('')}
   </div>
-  ${state.view === 'cats' ? catsView(s) : state.view === 'spends' ? spendsView() : summaryView()}`;
+  ${state.view === 'year' ? yearView() : `${monthSwitch(state.mk)}
+  ${state.view === 'cats' ? catsView(s) : state.view === 'spends' ? spendsView() : summaryView()}`}`;
 }
 
 export function bind(root, rerender) {
@@ -168,6 +215,9 @@ export function bind(root, rerender) {
     if (act === 'month-prev') { state.mk = shiftMonth(state.mk, -1); rerender(); }
     else if (act === 'month-next') { state.mk = shiftMonth(state.mk, 1); rerender(); }
     else if (act === 'view') { state.view = t.dataset.view; rerender(); }
+    else if (act === 'fy-prev') { state.fy -= 1; rerender(); }
+    else if (act === 'fy-next') { state.fy += 1; rerender(); }
+    else if (act === 'fam') { state.fam = t.dataset.fam || null; state.view = 'spends'; rerender(); }
     else if (act === 'filter') {
       state.cat = state.cat === t.dataset.cat ? null : t.dataset.cat;
       state.view = 'spends';

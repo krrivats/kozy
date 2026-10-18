@@ -97,7 +97,7 @@ export function render() {
   </section>`;
 }
 
-function daySheet(date) {
+export function openMilkDay(date) {
   const d = milk.day(date);
   const s = milk.settings();
   const el = openSheet(`
@@ -131,7 +131,7 @@ export function bind(root, rerender) {
     else if (act === 'skip-today') { await milk.skipDay(today()); toast('Skipped today'); }
     else if (act === 'month-prev') { state.mk = shiftMonth(state.mk, -1); rerender(); }
     else if (act === 'month-next') { state.mk = shiftMonth(state.mk, 1); rerender(); }
-    else if (t.dataset.day) daySheet(t.dataset.day);
+    else if (t.dataset.day) openMilkDay(t.dataset.day);
   });
   root.addEventListener('submit', async (ev) => {
     const f = ev.target;

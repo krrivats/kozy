@@ -15,7 +15,7 @@ async function closeSheet(page) {
 
 for (const scheme of ['light', 'dark']) {
   test(`screenshots ${scheme}`, async ({ page }) => {
-    test.setTimeout(60000);
+    test.setTimeout(90000);
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: 'reduce' });
     await page.goto(`/?today=${T}#/settings`);
     await page.evaluate(() => localStorage.clear());
@@ -60,6 +60,17 @@ for (const scheme of ['light', 'dark']) {
     await page.locator('.sheet [name="smart"]').fill('onion 5kg 50/kg');
     await shot(page, s('quick-add'));
     await closeSheet(page);
+
+    // v1.2 screens
+    await page.goto(`/?today=${T}#/budget`); await page.locator('[data-view="year"]').click(); await shot(page, s('budget-year'));
+    await page.locator('[data-view="cats"]').click();
+    await page.goto(`/?today=${T}#/stock`); await page.locator('[data-tab="plan"]').click(); await shot(page, s('stock-plan'));
+    await page.locator('[data-tab="kitchen"]').click();
+    await page.locator('.irow[data-item="item-atta"] [data-act="detail"]').click();
+    await page.locator('.sheet [data-edit-ev]').first().click(); await shot(page, s('edit-purchase')); await closeSheet(page);
+    await page.goto(`/?today=${T}#/settings`); await page.locator('[data-sec="limits"] > summary').click(); await shot(page, s('settings-budget'));
+    await page.goto(`/?today=2026-11-01#/home`); await expect(page.locator('.screen-home')).toBeVisible(); await shot(page, s('home-nov1'));
+    await page.locator('[data-act="checklist"]').click(); await shot(page, s('checklist')); await closeSheet(page);
 
     await page.goto(`/?today=${T}&role=member#/home`); await expect(page.locator('.screen-home')).toBeVisible(); await shot(page, s('member-home'));
     await page.goto(`/?today=${T}&role=viewer#/stock`); await expect(page.locator('.screen-stock')).toBeVisible(); await shot(page, s('viewer-stock'));

@@ -96,3 +96,87 @@ test('summary, who spent, goals, activity, reminders', () => {
   expect(msg.title).toContain('bill');
   expect(reminders(T, 'evening').every((r) => r.kind === 'milk')).toBe(true);
 });
+
+// ---------- v1.2 ----------
+import { parseBill } from '../js/logic/scan.js';
+
+test('budget total, allocation, salary-day checklist', async () => {
+  expect(budget.budgetTotal()).toBe(40000); // no budgetTotal set → sum of limits
+  await store.setMeta('budgetTotal', 42000);
+  expect(budget.allocation()).toEqual({ total: 42000, alloc: 40000, left: 2000 });
+  expect(budget.summary('2026-10').limit).toBe(42000);
+  // checklist: paid this month in demo → not due on 17 Oct, due on 1 Nov
+  expect(budget.dueBills('2026-10-17').some((b) => b.group === 'checklist')).toBe(false);
+  const nov = budget.dueBills('2026-11-01').filter((b) => b.group === 'checklist').map((b) => b.id).sort();
+  expect(nov).toEqual(['c-card', 'c-emergency', 'c-festival']);
+  expect(reminders('2026-11-01', 'morning').find((r) => r.kind === 'checklist').title).toBe('Salary-day checklist: 3 to do');
+});
+
+test('family spends from notes, insights, year view', () => {
+  const fam = Object.fromEntries(budget.familySpends('2026-10').map((f) => [f.name, f.total]));
+  expect(fam).toMatchObject({ Maa: 1000, Kids: 800, Papa: 450, Dadi: 350 });
+  expect(budget.mentionsName('Papaya 2kg', 'Papa')).toBe(false);
+  expect(budget.mentionsName('medicine papa', 'Papa')).toBe(true);
+  const ins = budget.insights('2026-10');
+  expect(ins.find((i) => i.id === 'pace').text).toMatch(/At this pace you will spend about ₹[\d,]+ this month/);
+  expect(ins.find((i) => i.id === 'usual')).toBeTruthy();
+  const y = budget.yearSummary(2026);
+  expect(y.label).toBe('FY 2026–27');
+  expect(y.months[0].mk).toBe('2026-04');
+  expect(y.months[11].mk).toBe('2027-03');
+  const sum = ['2026-08', '2026-09', '2026-10'].reduce((s, mk) => s + budget.summary(mk).spent, 0);
+  expect(Math.round(y.total)).toBe(Math.round(sum));
+  expect(y.catRows[0].total).toBeGreaterThan(0);
+});
+
+test('monthly use + plan, edit a purchase (price lives in the spend)', async () => {
+  const atta = store.get('items', 'item-atta');
+  const u = stock.monthlyUse(atta, T);
+  expect(u.unit).toBe('kg');
+  expect(u.perMonth).toBeGreaterThan(15);  // 10 kg bag lasts ~11 days → ~27 kg/month
+  expect(u.perMonth).toBeLessThan(40);
+  expect(u.suggestQty % 10).toBe(0);         // whole 10 kg bags
+  expect(Math.round(u.rate)).toBe(42);
+  const plan = stock.monthlyPlan(T);
+  expect(plan.kitchen.length).toBeGreaterThan(10);
+  expect(plan.veg.length).toBeGreaterThan(5);
+  expect(plan.kitchenTotal).toBeGreaterThan(1000);
+
+  const ev = stock.eventsFor('item-atta').filter((e) => e.type === 'bought').pop();
+  const entryId = ev.entryId;
+  await stock.updatePurchase(ev, { qty: 5, price: 230, note: 'Shakti bhog' });
+  expect(store.get('stock', ev.id)).toMatchObject({ qty: 5, note: 'Shakti bhog', entryId });
+  expect(store.get('entries', entryId).amount).toBe(230);
+  await stock.updatePurchase(store.get('stock', ev.id), { price: 0 });
+  expect(store.get('entries', entryId)).toBeNull();
+  expect(store.get('stock', ev.id).entryId).toBeNull();
+  await stock.updatePurchase(store.get('stock', ev.id), { price: 240 });
+  expect(stock.priceOf(store.get('stock', ev.id))).toBe(240);
+});
+
+test('bill scan parser', () => {
+  const text = `SHRI BALAJI KIRANA STORE
+Rohtak  Ph: 9812345678
+Date: 17/10/2026  Bill No: 1123
+Item          Qty    Rate   Amount
+Aashirvaad Atta 10kg  1  420  420.00
+Fortune Mustard Oil 1L 2 165  330.00
+Tata Salt 1kg   1   28   28.00
+Surf Excel 1kg  1  135  135
+Onion 2kg  1  80  80
+Parle G biscuit 4 10 40
+Sub Total               1033.00
+CGST 0.00
+Grand Total   1,033.00
+Thank you visit again`;
+  const r = parseBill(text);
+  expect(r.total).toBe(1033);
+  const byItem = Object.fromEntries(r.rows.filter((x) => x.item).map((x) => [x.item.id, x]));
+  expect(byItem['item-atta']).toMatchObject({ qty: 10, unit: 'kg', price: 420 });
+  expect(byItem['item-oil']).toMatchObject({ price: 330 });
+  expect(byItem['item-salt']).toMatchObject({ price: 28 });
+  expect(byItem['veg-onion']).toMatchObject({ qty: 2, price: 80 });
+  expect(r.rows.find((x) => /parle/i.test(x.name))).toMatchObject({ item: null, price: 40 });
+  expect(r.rows.length).toBe(6);
+  expect(r.sum).toBe(1033);
+});

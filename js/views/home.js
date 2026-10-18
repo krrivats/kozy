@@ -6,6 +6,7 @@ import { activity } from '../logic/activity.js';
 import { money, monthName, monthKey, today, esc, number, dayLabel } from '../logic/format.js';
 import { icon, logo, bar, toast, bump, openSheet, closeSheet } from '../ui.js';
 import { activityRow, syncDot, roleBadge } from './common.js';
+import { openEntry } from './edit-entry.js';
 import * as store from '../store.js';
 
 function chips() {
@@ -13,6 +14,10 @@ function chips() {
   const rem = reminders(t, 'all');
   const bills = rem.filter((r) => r.kind === 'bill');
   const out = [];
+  const check = budget.dueBills(t).filter((b) => b.group === 'checklist');
+  if (check.length) {
+    out.push(`<button class="nchip warn" data-act="checklist" data-test="chip-checklist">✅ Salary day · ${check.length} to do</button>`);
+  }
   if (bills.length) {
     out.push(`<button class="nchip warn" data-act="bills" data-test="chip-bills">🔁 ${bills.length} bill${bills.length > 1 ? 's' : ''} due</button>`);
   }
@@ -65,11 +70,14 @@ export function render() {
   </section>`;
 }
 
-function billsSheet() {
-  const due = budget.dueBills(today());
+function billsSheet(group = 'bills') {
+  const isCheck = group === 'checklist';
+  const due = budget.dueBills(today()).filter((b) => (b.group === 'checklist') === isCheck);
   const can = store.canWrite();
+  const reopen = () => (budget.dueBills(today()).some((b) => (b.group === 'checklist') === isCheck) ? billsSheet(group) : closeSheet(true));
   const el = openSheet(`
-    <h2 class="sheet-title">Bills due</h2>
+    <h2 class="sheet-title">${isCheck ? '✅ Salary-day checklist' : 'Bills due'}</h2>
+    ${isCheck ? '<p class="muted small">Money you move every month. Tap ✓ when done — it is added to that category.</p>' : ''}
     <div class="list" data-test="bills-sheet">
       ${due.length ? due.map((b) => `<form class="bill-row" data-bill="${b.id}">
         <span class="emo-badge">${b.emoji || '🧾'}</span>
@@ -77,10 +85,10 @@ function billsSheet() {
           <span class="small block ${b.daysTo < 0 ? 'over-text' : 'muted'}">${b.daysTo < 0 ? `Overdue · ${dayLabel(b.due)}` : b.daysTo === 0 ? 'Due today' : `Due ${dayLabel(b.due)}`}</span></span>
         ${can ? `<input class="input np-in" name="amount" type="number" inputmode="decimal" min="0" value="${b.amount || ''}" placeholder="₹" aria-label="Amount for ${esc(b.name)}">
         <button class="icon-btn" type="button" data-skip="${b.id}" aria-label="Skip ${esc(b.name)} this time">${icon('x')}</button>
-        <button class="btn small primary" type="submit">Paid</button>` : `<b class="num">${money(b.amount)}</b>`}
-      </form>`).join('') : '<p class="empty">No bills due 🎉</p>'}
+        <button class="btn small primary" type="submit">${isCheck ? '✓ Done' : 'Paid'}</button>` : `<b class="num">${money(b.amount)}</b>`}
+      </form>`).join('') : '<p class="empty">Nothing due 🎉</p>'}
     </div>
-    ${store.isOwner() ? '<a class="btn ghost" href="#/settings" data-close-sheet>All bills in Settings</a>' : ''}`);
+    ${store.isOwner() ? `<a class="btn ghost" href="#/settings" data-close-sheet>${isCheck ? 'Change the checklist in Settings' : 'All bills in Settings'}</a>` : ''}`);
   el.querySelector('[data-close-sheet]')?.addEventListener('click', () => closeSheet(true));
   el.querySelectorAll('[data-bill]').forEach((f) => f.addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -88,28 +96,33 @@ function billsSheet() {
     const amount = Number(f.amount.value);
     if (!(amount > 0)) { f.amount.focus(); return; }
     await budget.payBill(b, amount);
-    toast(`${b.name} ${money(amount)} paid ✓`);
-    if (budget.dueBills(today()).length) billsSheet(); else closeSheet(true);
+    toast(`${b.name} ${money(amount)} ${isCheck ? 'done' : 'paid'} ✓`);
+    reopen();
   }));
   el.querySelectorAll('[data-skip]').forEach((btn) => btn.addEventListener('click', async () => {
     const b = budget.bills().find((x) => x.id === btn.dataset.skip);
     await budget.skipBill(b);
     toast(`${b.name} skipped this time`);
-    if (budget.dueBills(today()).length) billsSheet(); else closeSheet(true);
+    reopen();
   }));
 }
 
 export function activitySheet() {
-  openSheet(`<h2 class="sheet-title">Activity</h2>
+  const el = openSheet(`<h2 class="sheet-title">Activity</h2>
+    <p class="muted small">Tap any line to change or delete it.</p>
     <div class="list act-full" data-test="activity">${activity(60).map(activityRow).join('') || '<p class="empty">Nothing yet.</p>'}</div>`);
+  el.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openEntry(b.dataset.open, b.dataset.ref)));
 }
 
 export function bind(root) {
   root.addEventListener('click', async (ev) => {
+    const o = ev.target.closest('[data-open]');
+    if (o) { openEntry(o.dataset.open, o.dataset.ref); return; }
     const t = ev.target.closest('[data-act]');
     if (!t) return;
     const act = t.dataset.act;
     if (act === 'bills') billsSheet();
+    else if (act === 'checklist') billsSheet('checklist');
     else if (act === 'activity') activitySheet();
     else if (act === 'milk-tick') {
       bump(t);

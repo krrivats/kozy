@@ -234,9 +234,11 @@ test('search finds by Hindi / Hinglish, "+ Add" creates a new item that stays', 
   await page.locator('.sheet [data-size="1"]').click();
   await page.locator('.sheet button[type="submit"]').click();
   await page.reload();
-  await page.locator('[data-search]').fill('gud');
+  await expect(page.locator('body.ready')).toBeVisible();
   await page.locator('[data-search]').fill('jagg');
-  await expect(row(page, await page.locator('.irow').first().getAttribute('data-item'))).toContainText('गुड़');
+  await expect(page.locator('[data-test="add-new"]')).toContainText('jagg');
+  await expect(page.locator('.irow')).toHaveCount(1);
+  await expect(page.locator('.irow').first()).toContainText('गुड़');
   await expect(page.locator('.irow').first().locator('[data-test="chip"]')).toHaveText('In stock');
 });
 
@@ -515,4 +517,114 @@ test('no screen is wider than the phone (no sideways scrolling)', async ({ page 
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(wide, `${r} ${extra || ''}`).toBeLessThanOrEqual(0);
   }
+});
+
+// ---------- v1.2 ----------
+test('edit any entry: kitchen purchase, sabzi price, Today pill, Recent rows (spend, purchase, milk)', async ({ page }) => {
+  await fresh(page, T, 'stock');
+  // kitchen purchase → edit qty + price from the item history
+  await row(page, 'item-atta').locator('[data-act="bought"]').click();
+  await page.locator('.sheet [data-size="10"]').click();
+  await page.locator('.sheet input[name="price"]').fill('420');
+  await page.locator('.sheet button[type="submit"]').click();
+  await row(page, 'item-atta').locator('[data-act="detail"]').click();
+  await page.locator('.sheet [data-edit-ev]').first().click();
+  const ed = page.locator('[data-test="edit-purchase"]');
+  await ed.locator('[name="qty"]').fill('5');
+  await ed.locator('[name="price"]').fill('230');
+  await ed.locator('[name="note"]').fill('Shakti bhog');
+  await ed.locator('[data-save]').click();
+  await expect(page.locator('.sheet .hist-row').first()).toContainText('Bought 5 kg · ₹230');
+  await page.keyboard.press('Escape');
+  // the Today strip pill opens the same editor
+  await page.locator('[data-test="bought-today"] [data-act="edit-ev"]').first().click();
+  await expect(page.locator('[data-test="edit-purchase"] [name="price"]')).toHaveValue('230');
+  await page.keyboard.press('Escape');
+
+  // sabzi purchase → fix the price
+  await page.locator('[data-tab="veg"]').click();
+  await page.locator('.vtile[data-item="veg-tomato"]').click();
+  await page.locator('.sheet [data-size="2"]').click();
+  await page.locator('.sheet input[name="price"]').fill('40');
+  await page.locator('.sheet button[type="submit"]').click();
+  await page.locator('.vtile[data-item="veg-tomato"]').click();
+  await page.locator('.sheet [data-edit-ev]').first().click();
+  await page.locator('[data-test="edit-purchase"] [name="price"]').fill('70');
+  await page.locator('[data-test="edit-purchase"] [data-save]').click();
+  await expect(page.locator('.sheet .price-line')).toContainText('₹35/kg');
+  await page.keyboard.press('Escape');
+
+  await go(page, T, 'budget');
+  await expect(tile(page, 'Groceries')).toContainText('₹300');
+
+  // Recent on Home: tap rows to edit
+  await go(page, T, 'home');
+  await page.locator('[data-test="chip-milk"]').click();
+  await addSpend(page, 150, 'Home misc', 'Cash', 'Tape');
+  await page.locator('[data-test="recent"] [data-open="spend"]').first().click();
+  await expect(page.locator('.sheet .sheet-title')).toHaveText('Edit spend');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-test="recent"] [data-open="milk"]').first().click();
+  await expect(page.locator('.sheet .sheet-title')).toContainText('Milk');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-test="recent"] [data-open="stock"]').first().click();
+  await expect(page.locator('[data-test="edit-purchase"]')).toBeVisible();
+});
+
+test('salary-day checklist on the 1st: Done / Skip, one tap each', async ({ page }) => {
+  await fresh(page, '2026-11-01');
+  await expect(page.locator('[data-test="chip-checklist"]')).toHaveText(/Salary day · 3 to do/);
+  await page.locator('[data-test="chip-checklist"]').click();
+  await expect(page.locator('.sheet .sheet-title')).toHaveText('✅ Salary-day checklist');
+  await page.locator('[data-bill="c-festival"] button[type="submit"]').click();
+  await page.locator('[data-skip="c-emergency"]').click();
+  await page.locator('[data-bill="c-card"] button[type="submit"]').click();
+  await expect(page.locator('#overlay')).toBeHidden();
+  await expect(page.locator('[data-test="chip-checklist"]')).toHaveCount(0);
+  await go(page, '2026-11-01', 'budget');
+  await expect(tile(page, 'Festival fund')).toContainText('₹1,500');
+  await expect(tile(page, 'Credit card payoff')).toContainText('₹3,000');
+  await expect(tile(page, 'Emergency fund')).toContainText('₹0');
+});
+
+test('budget manager: own monthly budget, allocation shown while editing', async ({ page }) => {
+  await fresh(page, T, 'settings');
+  await openSec(page, 'limits');
+  await expect(page.locator('[data-alloc]')).toContainText('All assigned ✓');
+  await page.locator('[data-test="budget-total"]').fill('45000');
+  await expect(page.locator('[data-alloc]')).toContainText('₹5,000 left to assign');
+  await page.locator('[data-form="cats"] button[type="submit"]').click();
+  await expect(page.locator('#toast')).toContainText('₹5,000 not assigned');
+  await go(page, T, 'home');
+  await expect(page.locator('[data-test="left"]')).toHaveText('₹45,000');
+});
+
+test('insights, year view, family spends, monthly plan', async ({ page }) => {
+  await fresh(page, T, 'settings');
+  await loadDemo(page);
+  await go(page, T, 'budget');
+  await expect(page.locator('[data-test="insights"]')).toContainText('At this pace you will spend about');
+
+  await page.locator('[data-view="summary"]').click();
+  await expect(page.locator('[data-test="insights"]')).toContainText('You usually spend');
+  const fam = page.locator('[data-test="family"]');
+  await expect(fam).toContainText('Papa');
+  await expect(fam).toContainText('₹450');
+  await fam.locator('[data-fam="Papa"]').click();
+  await expect(page.locator('[data-test="entries"] .entry')).toHaveCount(1);
+  await expect(page.locator('[data-test="entries"]')).toContainText('Medicine for Papa');
+
+  await page.locator('[data-view="year"]').click();
+  await expect(page.locator('[data-test="fy"]')).toContainText('FY 2026–27');
+  await expect(page.locator('[data-test="year"] .chart .cb')).toHaveCount(12);
+  await page.locator('[data-act="fy-prev"]').click();
+  await expect(page.locator('[data-test="fy"]')).toContainText('FY 2025–26');
+
+  await go(page, T, 'stock');
+  await page.locator('[data-tab="plan"]').click();
+  await expect(page.locator('[data-test="plan"]')).toContainText('Kitchen / month');
+  await expect(page.locator('.plan-row[data-plan="item-atta"]')).toContainText(/uses \d+(\.\d)? kg\/month · buy \d+ × 10 kg/);
+  await page.locator('[data-act="plan-all"]').click();
+  await page.locator('[data-tab="kitchen"]').click();
+  await expect(page.locator('[data-test="shopping"] [data-shop="item-atta"]')).toBeVisible();
 });

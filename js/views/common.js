@@ -33,12 +33,14 @@ export function entriesGrouped(list) {
     </div>`).join('');
 }
 
+// Tap a row to edit what it shows (spend, purchase, finished record or milk day).
 export function activityRow(a) {
-  return `<div class="act-row" data-kind="${a.kind}">
+  const kind = a.kind === 'spend' ? 'spend' : a.kind === 'milk' ? 'milk' : 'stock';
+  return `<button class="act-row" data-kind="${a.kind}" data-open="${kind}" data-ref="${esc(a.ref)}">
     <span class="act-emo">${a.emoji}</span>
     <span class="grow act-text"><b>${esc(a.who)}</b> ${esc(a.text)}</span>
     <span class="act-time">${ago(a.t)}</span>
-  </div>`;
+  </button>`;
 }
 
 export function monthSwitch(mk, act = 'month') {

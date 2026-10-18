@@ -64,3 +64,21 @@ Some replace v1 decisions above (marked ♻️).
 | 48 | **Sync dot** (Firebase mode only): green = saved, amber pulsing = saving or offline. | Shows at a glance whether your wife's phone has your entry yet. |
 | 49 | **`?emulator=1`** runs the app against local Firebase emulators (testing only). It can't touch real data. | That's how Firebase mode was tested tonight, before your real config exists. |
 | 50 | Weekly grocery view and year summary were **not built** (no answer either way). | Easy to add later if you want them. |
+
+---
+
+## v1.2 (18 Oct) — minimum entries, maximum results
+
+| # | Decision | Why |
+|---|---|---|
+| 51 | **Edit anything by tapping it**: Recent / Activity rows, the "Today:" pills, every line in a kitchen item's or sabzi's history. One editor covers qty, unit, total price, lasts-about, remark and date, plus Delete with Undo. | You asked to fix any entry made by mistake. Tapping the thing itself is the fewest steps. |
+| 52 | Changing a purchase's price **updates its linked Groceries spend**. Clearing the price removes that spend; adding a price creates one. | The budget and the stock can never disagree. |
+| 53 | **Salary-day checklist = monthly "bills" in their own group** (Festival ₹1,500, Emergency ₹1,500, Card ₹3,000). Own Home chip, ✓ Done / ✕ Skip, editable in Settings → Bills & salary day. Added automatically for existing data; already paid this month → starts next month. | It reuses the tested bill engine instead of a second system. |
+| 54 | **Monthly budget** can differ from the category total. Settings shows "Given to categories ₹X · ₹Y left to assign / over" live while you edit. Until you type your own budget it **follows the category total**. | A budget manager that can't drift by mistake. |
+| 55 | **Year view = Indian financial year (April–March)**, with ‹ › to change year. | Matches tax and salary thinking in India. |
+| 56 | **Insights** compare each category with **your usual by this day of the month** (average of the last 3 months with data). Bills, EMI and milk count as fixed, so a big bill on the 1st doesn't look like overspending. Only gaps of at least ₹300 and 15% are shown. | Avoids noisy "you spent more!" lines early in the month. |
+| 57 | **Monthly use** = qty bought in the last 90 days ÷ the days those purchases cover (first purchase to today, plus one typical gap) × 30. **Suggested buy** = whole packs of the size you usually buy, with 15% slack before adding another pack. | Uses only purchases you already log. No extra entries. |
+| 58 | **Plan → "+"** puts a kitchen item on the shopping list by hand; "All to list" adds next month's whole kitchen buy. | Turns the plan into the shopping list in one tap. |
+| 59 | **Family spends** are found by **whole-word names in the note**, case-insensitive ("papa" counts, "papaya" doesn't). Names are editable in Settings → Family names. Tap a name in Summary to see those spends. | You said you'd just write the name in the note. |
+| 60 | **Bill scan uses Tesseract.js** (free, open source), loaded from the jsDelivr CDN only when you tap 📷. The photo is read **on the device** and never uploaded. Lines matching an item become purchases; other lines become Groceries spends. You always review before saving. | Free and private. An AI vision service would read better but costs money and sends photos away. |
+| 61 | The scanner reads **printed English bills** well. Handwritten or Hindi bills and crumpled photos may come out poorly, so you can untick or fix any line. | An honest limit of free OCR. |

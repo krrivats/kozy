@@ -74,6 +74,9 @@ export function buildDemo(t = today()) {
       billState['b-solar'] = { due: has(1) ? next : d(1) };
       billState['b-wifi'] = { due: has(2) ? next : d(1) };
       billState['b-gas'] = { due: has(9) ? next : d(1) };
+      billState['c-card'] = { due: has(5) ? next : d(1) };
+      billState['c-festival'] = { due: has(6) ? next : d(1) };
+      billState['c-emergency'] = { due: has(6) ? next : d(1) };
     }
 
     for (let day = 1; day <= last; day++) {
@@ -94,15 +97,16 @@ export function buildDemo(t = today()) {
       if (!isToday) milk.push({ id: date, litres: skip ? 0 : litres, rate: 60, skip, by: who(), createdAt: at(date), updatedAt: at(date) });
     }
 
-    if (has(5)) entry(d(5), 'cc', 3000, 'Credit card payment', 'UPI');
+    if (has(5)) entry(d(5), 'cc', 3000, 'Credit card payment', 'UPI', { source: 'bill', ref: 'c-card' });
     if (has(3)) entry(d(3), 'family', 1000, 'Cash for Maa', 'Cash');
     if (has(15)) entry(d(15), 'family', 800, 'Kids pocket money', 'Cash');
-    if (has(6)) entry(d(6), 'festival', 1500, 'Festival saving', 'UPI');
-    if (has(6)) entry(d(6), 'emergency', 1500, 'Emergency saving', 'UPI');
+    if (has(6)) entry(d(6), 'festival', 1500, 'Festival saving', 'UPI', { source: 'bill', ref: 'c-festival' });
+    if (has(6)) entry(d(6), 'emergency', 1500, 'Emergency saving', 'UPI', { source: 'bill', ref: 'c-emergency' });
     if (has(4)) entry(d(4), 'misc', 650, 'Bulbs + extension board', 'UPI');
     if (has(11)) entry(d(11), 'misc', 1200, 'Plumber — kitchen tap', 'Cash');
     if (has(14)) entry(d(14), 'misc', mk === mkNow ? 1100 : 380, mk === mkNow ? 'Mixer repair' : 'Cleaning stuff', 'UPI');
-    if (has(13)) entry(d(13), 'buffer', 450, 'Medicine', 'UPI');
+    if (has(13)) entry(d(13), 'buffer', 450, 'Medicine for Papa', 'UPI');
+    if (has(10)) entry(d(10), 'misc', 350, 'Dadi glasses repair', 'Cash');
 
     if (mk !== mkNow) {
       const total = milk.filter((m) => m.id.startsWith(mk) && !m.skip).reduce((s, m) => s + m.litres * m.rate, 0);
@@ -145,6 +149,7 @@ export function buildDemo(t = today()) {
     { id: 'billState', value: billState },
     { id: 'goals', value: goals },
     { id: 'vegSeeded', value: true },
+    { id: 'checklistSeeded', value: true },
     { id: 'milkBilled', value: milkBilled },
     { id: 'milkSettings', value: { ...DEFAULT_MILK, asked: true } },
     { id: 'ccStart', value: DEFAULT_CC_START },

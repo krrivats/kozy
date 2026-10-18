@@ -41,7 +41,17 @@ export const DEFAULT_BILLS = [
   { id: 'b-vehicle', name: 'Vehicle insurance', emoji: '🏍️', cat: 'bills', amount: 0, freq: 'yearly', remind: 15, active: false },
   { id: 'b-school', name: 'School fees', emoji: '🎒', cat: 'bills', amount: 0, freq: 'quarterly', remind: 7, active: false },
   { id: 'b-ptax', name: 'Property tax', emoji: '🏛️', cat: 'bills', amount: 0, freq: 'yearly', remind: 15, active: false },
+  // Salary-day checklist: money you move every month on the 1st (shown together on Home, one tap each)
+  ...checklistDefaults(),
 ];
+
+function checklistDefaults() {
+  return [
+    { id: 'c-festival', group: 'checklist', name: 'Festival saving', emoji: '🪔', cat: 'festival', amount: 1500, freq: 'monthly', remind: 0, active: true },
+    { id: 'c-emergency', group: 'checklist', name: 'Emergency saving', emoji: '🛟', cat: 'emergency', amount: 1500, freq: 'monthly', remind: 0, active: true },
+    { id: 'c-card', group: 'checklist', name: 'Credit card payment', emoji: '💳', cat: 'cc', amount: 3000, freq: 'monthly', remind: 0, active: true },
+  ];
+}
 
 export const MODES = ['UPI', 'Cash', 'Card'];
 export const SAVINGS_CATS = ['festival', 'emergency'];
@@ -60,6 +70,19 @@ export function cat(id) {
 
 export function totalLimit() {
   return cats().reduce((s, c) => s + (Number(c.limit) || 0), 0);
+}
+
+// Your monthly budget (Settings → Budget). If not set, it is the sum of the category limits.
+export function budgetTotal() {
+  const v = Number(store.meta('budgetTotal', 0));
+  return v > 0 ? v : totalLimit();
+}
+
+// How much of the budget is given to categories, and how much is still free to assign.
+export function allocation() {
+  const total = budgetTotal();
+  const alloc = totalLimit();
+  return { total, alloc, left: total - alloc };
 }
 
 export function entriesFor(mk) {
@@ -85,7 +108,7 @@ export function level(spent, limit) {
 
 export function summary(mk = monthKey()) {
   const t = today();
-  const limit = totalLimit();
+  const limit = budgetTotal();
   const by = spentByCat(mk);
   const spent = Object.values(by).reduce((s, v) => s + v, 0);
   const left = limit - spent;
@@ -196,8 +219,20 @@ export async function ensureBills() {
   if (!store.isOwner()) return;
   const cs = store.meta('cats', null);
   if (cs && !cs.some((c) => c.id === 'bills')) await store.setMeta('cats', [...cs, DEFAULT_CATS.find((c) => c.id === 'bills')]);
-  if (store.meta('bills', null)) return;
   const mk = monthKey();
+  if (store.meta('bills', null)) {
+    // v1.2: add the salary-day checklist once, for people who already had bills
+    if (!store.meta('checklistSeeded')) {
+      const have = bills();
+      const add = checklistDefaults().filter((c) => !have.some((b) => b.id === c.id)).map((c) => ({ ...c, firstDue: `${mk}-01` }));
+      await store.setMeta('bills', [...have, ...add]);
+      const st = { ...store.meta('billState', {}) };
+      for (const c of add) if (entriesFor(mk).some((e) => e.cat === c.cat)) st[c.id] = { due: `${shiftMonth(mk, 1)}-01` };
+      await store.setMeta('billState', st);
+      await store.setMeta('checklistSeeded', true);
+    }
+    return;
+  }
   const old = store.meta('recurring', null);
   const list = DEFAULT_BILLS.map((b) => ({ ...b, firstDue: `${mk}-01` }));
   if (old) {
@@ -216,6 +251,7 @@ export async function ensureBills() {
     state[id] = { due: `${shiftMonth(mk, 1)}-01` };
   }
   await store.setMeta('billState', state);
+  await store.setMeta('checklistSeeded', true);
 }
 
 // ---------- Goals ----------
@@ -227,6 +263,108 @@ export function goals() {
     const daysLeft = g.by ? diffDays(today(), g.by) : null;
     return { ...g, saved, pct, daysLeft, left: Math.max(0, g.target - saved) };
   });
+}
+
+// ---------- Family spends (names found in notes) ----------
+export const DEFAULT_FAMILY = ['Maa', 'Papa', 'Dadi', 'Dada', 'Bhaiya', 'Didi', 'Kids'];
+
+export function familyNames() {
+  return store.meta('family', DEFAULT_FAMILY);
+}
+
+// Does the note mention this name as a whole word? ("papa" yes, "papaya" no). Hindi names: plain match.
+export function mentionsName(note, name) {
+  const n = String(name || '').trim().toLowerCase();
+  const text = String(note || '').toLowerCase();
+  if (!n) return false;
+  if (!/^[a-z0-9 ]+$/.test(n)) return text.includes(n);
+  return text.split(/[^a-z0-9]+/).includes(n) || (n.includes(' ') && text.includes(n));
+}
+
+// { name, total, count, entries } for every family name written in a spend's note this month.
+export function familySpends(mk = monthKey()) {
+  const list = entriesFor(mk);
+  return familyNames().map((name) => {
+    const es = list.filter((e) => mentionsName(e.note, name));
+    return { name, total: es.reduce((s, e) => s + Number(e.amount || 0), 0), count: es.length, entries: es };
+  }).filter((f) => f.count).sort((a, b) => b.total - a.total);
+}
+
+// ---------- Usual spend + insights ----------
+// Average of the last n months before mk that have any spends (category catId, or all when null).
+export function usual(catId, mk = monthKey(), n = 3) {
+  const vals = [];
+  for (let i = 1; i <= 12 && vals.length < n; i++) {
+    const es = entriesFor(shiftMonth(mk, -i));
+    if (!es.length) continue;
+    vals.push(es.filter((e) => !catId || e.cat === catId).reduce((s, e) => s + Number(e.amount || 0), 0));
+  }
+  return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
+}
+
+const FIXED_SOURCES = ['bill', 'recurring', 'milk'];
+
+function fmt(n) {
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Math.round(n));
+}
+
+// Plain-English lines: pace for the month, categories above/below usual, usual monthly total.
+export function insights(mk = monthKey()) {
+  const t = today();
+  const s = summary(mk);
+  const out = [];
+  const dim = daysInMonth(mk);
+  const isCur = mk === monthKey(t);
+  const day = isCur ? Number(t.slice(8, 10)) : dim;
+  const frac = day / dim;
+  const list = entriesFor(mk);
+  const fixed = list.filter((e) => FIXED_SOURCES.includes(e.source)).reduce((a, e) => a + Number(e.amount), 0);
+  const variable = s.spent - fixed;
+  const usualTotal = usual(null, mk);
+
+  if (isCur && day >= 5 && day < dim) {
+    const proj = Math.round(fixed + (variable / day) * dim);
+    out.push({ id: 'pace', level: proj > s.limit ? 'over' : proj > s.limit * 0.95 ? 'warn' : 'ok', amount: proj,
+      text: `At this pace you will spend about ${fmt(proj)} this month (budget ${fmt(s.limit)}).` });
+  }
+  const rows = cats().map((c) => {
+    const u = usual(c.id, mk);
+    const spent = s.by[c.id] || 0;
+    const fixedCat = list.some((e) => e.cat === c.id && FIXED_SOURCES.includes(e.source));
+    const expected = fixedCat ? u : u * frac; // compare with "usual by this day"
+    return { c, u, spent, expected, diff: spent - expected };
+  }).filter((r) => r.u > 0 && Math.abs(r.diff) >= 300 && Math.abs(r.diff) / Math.max(r.expected, 1) >= 0.15);
+  for (const r of rows.filter((x) => x.diff > 0).sort((a, b) => b.diff - a.diff).slice(0, 2)) {
+    out.push({ id: `up-${r.c.id}`, level: 'warn', cat: r.c.id,
+      text: `${r.c.emoji} ${r.c.name}: ${fmt(r.spent)} so far, usually ${fmt(r.expected)} by now (+${Math.round((r.diff / Math.max(r.expected, 1)) * 100)}%).` });
+  }
+  for (const r of rows.filter((x) => x.diff < 0).sort((a, b) => a.diff - b.diff).slice(0, 1)) {
+    out.push({ id: `down-${r.c.id}`, level: 'ok', cat: r.c.id, text: `${r.c.emoji} ${r.c.name}: ${fmt(-r.diff)} below your usual so far.` });
+  }
+  if (usualTotal) out.push({ id: 'usual', level: 'info', text: `You usually spend ${fmt(usualTotal)} a month (last 3 months).` });
+  return out;
+}
+
+// ---------- Year view (Indian financial year, April–March) ----------
+export function fyOf(date = today()) {
+  const [y, m] = date.split('-').map(Number);
+  return m >= 4 ? y : y - 1;
+}
+
+export function yearSummary(fy = fyOf()) {
+  const t = monthKey();
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const mk = shiftMonth(`${fy}-04`, i);
+    const spent = entriesFor(mk).reduce((s, e) => s + Number(e.amount || 0), 0);
+    return { mk, label: monthShortName(mk), spent, future: mk > t };
+  });
+  const total = months.reduce((s, m) => s + m.spent, 0);
+  const counted = months.filter((m) => !m.future && m.spent > 0).length || 1;
+  const byCat = {};
+  for (const m of months) for (const [id, v] of Object.entries(spentByCat(m.mk))) byCat[id] = (byCat[id] || 0) + v;
+  const catRows = Object.entries(byCat).map(([id, v]) => ({ ...cat(id), total: v, avg: v / counted })).sort((a, b) => b.total - a.total);
+  const highest = [...months].sort((a, b) => b.spent - a.spent)[0];
+  return { fy, label: `FY ${fy}–${String(fy + 1).slice(2)}`, months, total, avg: total / counted, counted, catRows, highest, budget: budgetTotal() };
 }
 
 // ---------- Monthly summary ----------
@@ -242,7 +380,7 @@ export function monthSummary(mk = monthKey()) {
   const list = entriesFor(mk);
   const biggest = [...list].sort((a, b) => b.amount - a.amount).slice(0, 5);
   const saved = SAVINGS_CATS.reduce((s, id) => s + (cur.by[id] || 0), 0);
-  return { ...cur, prevMk, prevTotal, change: cur.spent - prevTotal, rows, people: byPerson(mk), biggest, saved, count: list.length };
+  return { ...cur, prevMk, prevTotal, change: cur.spent - prevTotal, rows, people: byPerson(mk), biggest, saved, count: list.length, family: familySpends(mk) };
 }
 
 function csvCell(v) {
@@ -263,4 +401,3 @@ export function monthCsv(mk) {
   return rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
 }
 
-export { pad };

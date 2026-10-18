@@ -24,14 +24,16 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - `js/firebase-config.js` — Firebase web config + `VAPID_KEY` (placeholders until the user pastes real values).
 - `js/store.js` — ONE data API with role guards (`ReadOnlyError`). Picks `LocalAdapter` or `FirestoreAdapter`.
 - `js/adapters/local.js` (`?role=member|viewer` previews), `js/adapters/firestore.js` (auth, live sync, push token).
-- `js/logic/*.js` — pure maths, no DOM: `budget` (cats, bills with any repeat, goals, summary), `stock` (kitchen
-  countdown + sabzi price history), `milk`, `quick` (smart quick-add parser), `reminders`, `activity`, `demo`, `format`.
-- `js/views/*.js` — one file per screen + `spend-sheet.js` (the + button). `js/app.js` — router + startup.
+- `js/logic/*.js` — pure maths, no DOM: `budget` (cats, budget total, bills + salary-day checklist, goals, summary,
+  insights, year view, family spends), `stock` (kitchen countdown, sabzi prices, edit purchase, monthly use + plan),
+  `milk`, `quick` (smart quick-add parser), `scan` (bill photo → lines, Tesseract.js from CDN), `reminders`, `activity`, `demo`, `format`.
+- `js/views/*.js` — one file per screen + `spend-sheet.js` (the + button), `edit-entry.js` (edit any entry),
+  `scan-sheet.js` (📷 review). `js/app.js` — router + startup.
 - `sw.js` (offline + push) · `manifest.webmanifest` · `icons/` — PWA.
 - `firestore.rules` — roles enforced server-side (ME_EMAIL / WIFE_EMAIL / VIEWER_EMAIL placeholders).
 - `tools/server.mjs` — local server (`npm start` → http://localhost:5173).
 - `tools/reminders/send.mjs` + `.github/workflows/reminders.yml` — free daily push reminders via GitHub Actions.
-- `tests/` — Playwright (`npm test`, 23 tests incl. unit + push). Screenshots → `screenshots/`.
+- `tests/` — Playwright (`npm test`, 32 tests incl. unit, push and a real bill scan). Screenshots → `screenshots/`.
 - `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (rules), `npm run test:app` (real app in Firebase mode).
 
 ## Progress
@@ -39,7 +41,10 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - [x] Phase 1 (v1.0) — budget, stock, milk, settings, PWA, tests, local mode
 - [x] v1.1 — roles, smart quick add, search + add, sizes, countdown, sabzi prices, shopping mode, bills any repeat,
       goals, who-spent, activity, summary, undo, reminders, compact UI (see PHASE2_PLAN.md, DECISIONS.md #24–50)
+- [x] v1.2 — edit any entry, salary-day checklist, budget manager, year view (Apr–Mar), insights, monthly plan,
+      family spends from notes, bill photo scan (DECISIONS.md #51–61)
 - [ ] User: paste Firebase config + VAPID key, set emails in firestore.rules + config.js, `USE_FIREBASE = true`, test on 2 iPhones
 - [ ] User: GitHub Pages deploy (repo krrivats/kozy) + `FIREBASE_SERVICE_ACCOUNT` secret for reminders
-- [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils), bill photo scan with AI
-- [ ] Maybe: weekly grocery view, year summary (user didn't decide)
+- [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
+- [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
+- [ ] Next: user will review the UI on the laptop and ask for modifications
