@@ -37,15 +37,15 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (rules), `npm run test:app` (real app in Firebase mode).
 
 ## Progress
+- [x] LIVE 2026-10-18: https://krrivats.github.io/kozy/ (repo krrivats/kozy, GitHub Pages from main /root),
+      Firebase project kozy-7ef39, rules published, sign-up off. Login with just "krrish" (owner) / "preeti" (member); guest mode.
+- [ ] Phone reminders: VAPID_KEY in js/firebase-config.js + FIREBASE_SERVICE_ACCOUNT GitHub secret (not done yet)
 - [x] Phase 0 — setup, git, CLAUDE.md, PLAN.md
 - [x] Phase 1 (v1.0) — budget, stock, milk, settings, PWA, tests, local mode
 - [x] v1.1 — roles, smart quick add, search + add, sizes, countdown, sabzi prices, shopping mode, bills any repeat,
       goals, who-spent, activity, summary, undo, reminders, compact UI (see PHASE2_PLAN.md, DECISIONS.md #24–50)
 - [x] v1.2 — edit any entry, salary-day checklist, budget manager, year view (Apr–Mar), insights, monthly plan,
       family spends from notes, bill photo scan (DECISIONS.md #51–61)
-- [ ] User: paste Firebase config + VAPID key, set emails in firestore.rules + config.js, `USE_FIREBASE = true`, test on 2 iPhones
-- [ ] User: GitHub Pages deploy (repo krrivats/kozy) + `FIREBASE_SERVICE_ACCOUNT` secret for reminders
 - [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
 - [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
 - [x] v1.3 — redesign (glass, dock with centre +, ⚙️ in headers, ring gauge, quick actions), every row tappable to edit (DECISIONS #62–67)
-- [ ] Next: push to GitHub (user creates repo) + connect the user's Firebase project
