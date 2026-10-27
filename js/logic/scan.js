@@ -28,6 +28,10 @@ const SKIP = /\b(sub ?total|total|net|gst|cgst|sgst|igst|tax|discount|round|cash
 const TOTAL = /\b(grand total|net total|net amount|net amt|total amount|total|amount payable|payable)\b/i;
 const UNIT = { kg: 'kg', kgs: 'kg', g: 'g', gm: 'g', gms: 'g', gr: 'g', l: 'L', lt: 'L', ltr: 'L', ml: 'ml', pc: 'pcs', pcs: 'pcs', nos: 'pcs', pkt: 'pack', pack: 'pack', dz: 'dozen', dozen: 'dozen', btl: 'bottle' };
 
+// OCR often reads the letter O as a zero at the start of a word ("0il" → "Oil"). Units like "0kg" are left alone.
+const fixO = (s) => s.replace(/\b0(?=[a-z]{2,})(?!(?:kgs?|gms?|gr|ltr|lt|ml|pcs?|nos|pkt|pack|dz|dozen|btl)\b)/gi, 'O')
+  .replace(/(?<=[a-z])0(?=[a-z])/gi, 'o');
+
 function num(s) {
   return Number(String(s).replace(/,/g, ''));
 }
@@ -52,7 +56,7 @@ export function parseBill(text) {
   const rows = [];
   let total = null;
   for (const raw0 of String(text || '').split(/\r?\n/)) {
-    const raw = raw0.replace(/[₹|]/g, ' ').replace(/\bRs\.?/gi, ' ').replace(/\/-/g, ' ').replace(/\s+/g, ' ').trim();
+    const raw = fixO(raw0).replace(/[₹|]/g, ' ').replace(/\bRs\.?/gi, ' ').replace(/\/-/g, ' ').replace(/\s+/g, ' ').trim();
     if (raw.length < 3 || !/\d/.test(raw) || !/[a-z]/i.test(raw)) continue;
     const nums = raw.match(/\d+(?:[.,]\d+)*(?:\.\d+)?/g) || [];
     const last = nums.length ? num(nums[nums.length - 1]) : null;

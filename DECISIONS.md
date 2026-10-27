@@ -117,3 +117,14 @@ Some replace v1 decisions above (marked ♻️).
 | 73 | **Milk types**, each with its own litres/day and ₹/L (default 🐃 Buffalo 2 L + 🐄 Cow 1.5 L; add or remove types in Settings → Milk). A day stores litres and rate per type. | You buy buffalo and cow milk at different prices. |
 | 74 | **One tap logs every type** at its usual amount; the message offers **Change**, which opens the day editor (one − / + per type). Tapping a calendar day opens the same editor. | "One tap and done, but I can open it, change and save." |
 | 75 | A new rate applies from that day on; **old days keep their rate**. Older one-milk days still count (shown as "Milk"). | The milkman's account must never change for days already past. |
+
+---
+
+## v1.7 (27 Oct) — weekly grocery view + polish
+
+| # | Decision | Why |
+|---|---|---|
+| 76 | **Stock → 🗓️ Week**: one list for the next 7 days. Kitchen items that are out, overdue or run out this week (qty = your last pack) + the sabzi you usually buy in a week (from the last 3 months, kg rounded to 0.5). ₹ at your last price. A 7-day strip shows how many items run out each day. **All to list**, copy and share. | One shopping trip a week instead of many small ones. Ideas taken from Grocy / My Pantry (open-source pantry apps). |
+| 77 | An item past its run-out date but not marked Finished shows a red **Overdue** chip, "Due since 15 Oct" (shorter), and "due" on the shopping pill and in Week. | The yellow "Running low" chip said the opposite of the red text. |
+| 78 | Polish: Home quick action says **Milk 3.5 L** (fits one line), Budget's CSV is an icon button (header subtitle fits one line), the shopping card title is **Shopping** (no wrap at 360px). | Compact, no wrapped labels. |
+| 79 | Bill scan fixes the letter O read as a zero at the start of a word ("0il" → Oil). | The free scanner did this on the test bill, so Oil was missed. |

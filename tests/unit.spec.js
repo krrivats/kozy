@@ -59,7 +59,7 @@ test('bills: due window, pay advances by frequency', async () => {
 });
 
 test('stock: countdown, low days, sabzi price history, shopping list', () => {
-  const all = stock.allAnalyzed();
+  const all = stock.items('kitchen').map((it) => stock.analyze(it, T)); // fixed test day, not the real clock
   expect(all.length).toBe(17);
   expect(all.some((a) => a.status === 'finished')).toBe(true);
   const besan = all.find((a) => a.item.id === 'item-besan');
@@ -152,6 +152,34 @@ test('monthly use + plan, edit a purchase (price lives in the spend)', async () 
   expect(store.get('stock', ev.id).entryId).toBeNull();
   await stock.updatePurchase(store.get('stock', ev.id), { price: 240 });
   expect(stock.priceOf(store.get('stock', ev.id))).toBe(240);
+});
+
+test('weekly grocery plan: kitchen running out in 7 days + usual sabzi', async () => {
+  const wk = stock.weeklyPlan(T);
+  expect(wk.days.length).toBe(7);
+  expect(wk.days[0].date).toBe(T);
+  expect(wk.to).toBe('2026-10-23');
+  // Every kitchen row is out, marked, or runs out within the week; each sits on one day of the strip.
+  for (const r of wk.kitchen) {
+    expect(r.due >= T && r.due <= wk.to).toBe(true);
+    expect(wk.days.some((d) => d.items.includes(r))).toBe(true);
+  }
+  expect(wk.kitchen.some((r) => r.why === 'out')).toBe(true);
+  expect(wk.kitchen.find((r) => r.item.id === 'item-tea')).toMatchObject({ why: 'overdue', due: T }); // due since 15 Oct
+  expect(wk.kitchen.find((r) => r.item.id === 'item-besan')).toBeUndefined(); // bought today, lasts ~3 weeks
+  // Usual sabzi: rounded to 0.5 kg, priced at your average rate.
+  const onion = wk.veg.find((r) => r.item.id === 'veg-onion');
+  expect(onion.qty * 2 % 1).toBe(0);
+  expect(onion.cost).toBeGreaterThan(0);
+  expect(wk.veg.some((r) => r.item.id === 'veg-tomato')).toBe(true); // marked "need"
+  expect(wk.kitchenTotal + wk.vegTotal).toBeGreaterThan(0);
+  expect(stock.weeklyText(wk)).toContain('🧅 Onion / प्याज');
+});
+
+test('bill scan: letter O read as zero', () => {
+  const r = parseBill('Fortune 0il 1L 165.00\nAashirvaad Atta 10kg 420.00\nT0mato 1kg 40');
+  expect(r.rows.map((x) => x.item?.id)).toEqual(['item-oil', 'item-atta', 'veg-tomato']);
+  expect(r.rows[1]).toMatchObject({ qty: 10, unit: 'kg', price: 420 });
 });
 
 test('bill scan parser', () => {

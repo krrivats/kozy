@@ -188,7 +188,7 @@ export function render() {
   const views = [['cats', 'Overview'], ['spends', 'Spends'], ['summary', 'Summary'], ['year', 'Year']];
   return `
   ${header('Budget', `${money(s.spent)} of ${money(s.limit)} · ${money(s.left)} left`,
-    `<button class="btn small ghost" data-act="csv" aria-label="Export month to CSV">${icon('download')} CSV</button>`)}
+    `<button class="icon-btn" data-act="csv" aria-label="Export month to CSV" title="Export CSV">${icon('download')}</button>`)}
   <div class="seg views" role="tablist">
     ${views.map(([k, l]) => `<button class="${state.view === k ? 'on' : ''}" data-act="view" data-view="${k}" role="tab" aria-selected="${state.view === k}">${l}</button>`).join('')}
   </div>

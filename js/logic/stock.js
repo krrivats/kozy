@@ -362,6 +362,54 @@ export function monthlyPlan(t = today()) {
   };
 }
 
+// ---------- This week's grocery run ----------
+// One list for the next 7 days: kitchen items that run out (or are out / marked), plus the sabzi you usually buy in a week.
+const roundQty = (n, unit) => (['g', 'ml'].includes(unit) ? Math.max(50, Math.round(n / 50) * 50)
+  : ['kg', 'L'].includes(unit) ? Math.max(0.5, Math.round(n * 2) / 2) : Math.max(1, Math.round(n)));
+
+export function weeklyPlan(t = today()) {
+  const end = addDays(t, 6);
+  const lastRate = (it) => { const p = pricePoints(it); return p.length ? p[p.length - 1].rate : 0; };
+
+  const kitchen = items('kitchen').map((it) => analyze(it, t))
+    .filter((a) => a.status === 'finished' || a.item.need || (a.open && a.runout && a.runout <= end))
+    .map((a) => {
+      const qty = Number(a.lastBought?.qty) || 1;
+      const unit = a.lastBought?.unit || a.item.unit;
+      const due = a.status === 'finished' || !a.runout || a.runout < t ? t : a.runout;
+      const rate = lastRate(a.item);
+      return { item: a.item, due, qty, unit, cost: qty * rate, why: a.status === 'finished' ? 'out' : a.runout && a.runout < t ? 'overdue' : a.runout && a.runout <= end ? 'runs out' : 'marked', runout: a.runout };
+    })
+    .sort((x, y) => x.due.localeCompare(y.due) || x.item.en.localeCompare(y.item.en));
+
+  const veg = items('veg').map((v) => {
+    const u = monthlyUse(v, t);
+    if (!u && !v.need) return null;
+    const unit = u?.unit || v.unit;
+    const qty = u ? roundQty(u.perWeek, unit) : 1;
+    return { item: v, qty, unit, cost: u?.rate ? qty * u.rate : 0, usual: !!u };
+  }).filter(Boolean).sort((x, y) => (y.item.need ? 1 : 0) - (x.item.need ? 1 : 0) || y.cost - x.cost);
+
+  const days = Array.from({ length: 7 }, (_, i) => {
+    const date = addDays(t, i);
+    return { date, items: kitchen.filter((k) => k.due === date) };
+  });
+  return {
+    from: t, to: end, kitchen, veg, days,
+    kitchenTotal: kitchen.reduce((s, r) => s + r.cost, 0),
+    vegTotal: veg.reduce((s, r) => s + r.cost, 0),
+  };
+}
+
+export function weeklyText(w = weeklyPlan()) {
+  const q = (r) => `${r.qty} ${r.unit}`;
+  const lines = [
+    ...w.kitchen.map((r) => `• ${r.item.en} / ${r.item.hi} — ${q(r)}`),
+    ...w.veg.map((r) => `• ${r.item.emoji ? `${r.item.emoji} ` : ''}${r.item.en} / ${r.item.hi} — ${q(r)}`),
+  ];
+  return `🗓️ Kozy weekly groceries\n${lines.join('\n')}`;
+}
+
 export async function setNeed(item, need) {
   return store.put('items', { ...item, need: !!need });
 }

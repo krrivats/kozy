@@ -23,7 +23,7 @@ function countdown(a) {
   if (a.status === 'none') return '<span class="cd muted">Not tracked yet — tap + when you buy it</span>';
   if (a.status === 'finished') return `<span class="cd over">Finished${a.avgDays ? ` · usually lasts ${Math.round(a.avgDays)}d` : ''}</span>`;
   if (!a.runout) return `<span class="cd muted">Bought ${relDay(a.open.date)} · tap to set days</span>`;
-  if (a.runout < today()) return `<span class="cd over">⏳ Due since ${dayLabel(a.runout)} · tap ✓ when it's over</span>`;
+  if (a.runout < today()) return `<span class="cd over">⏳ Due since ${dayLabel(a.runout)}</span>`;
   const left = a.daysLeft === 0 ? 'Runs out today' : `${a.daysLeft} day${a.daysLeft === 1 ? '' : 's'} left`;
   return `<span class="cd ${a.status === 'low' ? 'warn' : ''}">⏳ ${left} · ${dayLabel(a.runout)}</span>`;
 }
@@ -36,7 +36,8 @@ function usedBar(a) {
 }
 
 function itemRow(a) {
-  const [label, cls] = CHIP[a.status];
+  // Past its run-out date but not marked Finished: say so on the chip too.
+  const [label, cls] = a.status !== 'finished' && a.runout && a.runout < today() ? ['Overdue', 'over'] : CHIP[a.status];
   const w = store.canWrite();
   return `<article class="irow" data-item="${a.item.id}" data-status="${a.status}">
     <button class="irow-main" data-act="detail" data-id="${a.item.id}">
@@ -80,14 +81,14 @@ function shopCard() {
   const w = store.canWrite();
   return `<section class="card shop tight ${shop.length ? '' : 'empty-shop'}" data-test="shopping">
     <div class="card-head">
-      <h2>${icon('cart')} Shopping list <span class="count">${shop.length}</span></h2>
+      <h2 class="nowrap">${icon('cart')} Shopping <span class="count">${shop.length}</span></h2>
       ${shop.length ? `<div class="row gap-s">
         <button class="icon-btn" data-act="copy" aria-label="Copy shopping list">${icon('copy')}</button>
         <button class="icon-btn" data-act="share" aria-label="Share shopping list">${icon('share')}</button>
         ${w ? '<button class="btn small primary" data-act="shopmode">Shop ✓</button>' : ''}</div>` : ''}
     </div>
     ${shop.length ? `<div class="pills">${shop.map((a) => `<button class="pill ${a.status === 'finished' ? 'over' : a.status === 'need' ? 'need' : 'warn'}" data-act="${a.item.kind === 'veg' ? 'veg' : 'bought'}" data-id="${a.item.id}" data-shop="${a.item.id}">
-        ${a.item.emoji ? `${a.item.emoji} ` : ''}${esc(a.item.en)}<span class="muted"> ${a.status === 'finished' ? 'out' : a.status === 'need' ? '' : a.daysLeft === 0 ? 'today' : `${a.daysLeft}d`}</span></button>`).join('')}</div>`
+        ${a.item.emoji ? `${a.item.emoji} ` : ''}${esc(a.item.en)}<span class="muted"> ${a.status === 'finished' ? 'out' : a.status === 'need' ? '' : a.runout && a.runout < today() ? 'due' : a.daysLeft === 0 ? 'today' : `${a.daysLeft}d`}</span></button>`).join('')}</div>`
       : '<p class="empty small">Nothing to buy in the next few days 🎉</p>'}
   </section>`;
 }
@@ -119,14 +120,15 @@ export function render() {
     <div class="seg tabs2" role="tablist">
       <button class="${state.tab === 'kitchen' ? 'on' : ''}" data-act="tab" data-tab="kitchen" role="tab">🧺 Kitchen</button>
       <button class="${state.tab === 'veg' ? 'on' : ''}" data-act="tab" data-tab="veg" role="tab">🥬 Sabzi</button>
+      <button class="${state.tab === 'week' ? 'on' : ''}" data-act="tab" data-tab="week" role="tab">🗓️ Week</button>
       <button class="${state.tab === 'plan' ? 'on' : ''}" data-act="tab" data-tab="plan" role="tab">📅 Plan</button>
     </div>
-    <label class="search-box" ${state.tab === 'plan' ? 'hidden' : ''}>${icon('search')}
+    <label class="search-box" ${['plan', 'week'].includes(state.tab) ? 'hidden' : ''}>${icon('search')}
       <input class="search-in" type="search" placeholder="Search item (atta, pyaz, आलू)…" value="${esc(state.q)}" data-search aria-label="Search items" autocomplete="off">
     </label>
   </div>
 
-  ${state.tab === 'plan' ? planView() : `
+  ${state.tab === 'plan' ? planView() : state.tab === 'week' ? weekView() : `
   ${q && w ? `<button class="add-new" data-act="add-new" data-test="add-new">${icon('plus')} Add “${esc(q)}” as new ${state.tab === 'veg' ? 'sabzi' : 'item'}</button>` : ''}
   ${noHits ? '<p class="empty">No item found.</p>' : ''}
 
@@ -183,6 +185,55 @@ function planView() {
     <div class="card-head"><h2>🥬 Sabzi per month</h2></div>
     <div class="list">${p.veg.map(vRow).join('')}</div>
   </section>` : ''}`;
+}
+
+// 🗓️ Week: one grocery run for the next 7 days (kitchen items running out + your usual weekly sabzi).
+const shortDay = new Intl.DateTimeFormat('en-IN', { weekday: 'short' });
+
+function weekView() {
+  const wk = stock.weeklyPlan();
+  const w = store.canWrite();
+  const t = today();
+  if (!wk.kitchen.length && !wk.veg.length) {
+    return '<p class="empty">Nothing due this week 🎉 Kitchen items that run out in the next 7 days and the sabzi you usually buy show up here.</p>';
+  }
+  const dayDot = (d) => `<div class="wday ${d.items.length ? 'has' : ''} ${d.date === t ? 'today' : ''}" title="${d.items.map((k) => esc(k.item.en)).join(', ')}">
+      <span class="wd">${d.date === t ? 'Today' : shortDay.format(new Date(`${d.date}T00:00`))}</span>
+      <span class="wn">${d.items.length || '·'}</span></div>`;
+  const tick = (it) => (w ? `<button class="icon-btn ${it.need ? 'on' : ''}" data-act="plan-need" data-id="${it.id}" aria-label="${it.need ? 'Remove from' : 'Add to'} shopping list">${icon(it.need ? 'check' : 'plus')}</button>` : '');
+  const kRow = (r) => `<div class="plan-row" data-week="${r.item.id}">
+      <button class="grow go-row plan-open" data-act="detail" data-id="${r.item.id}"><b>${esc(r.item.en)}</b> <span class="hi">${esc(r.item.hi)}</span>
+        <span class="muted small block">${number(r.qty)} ${esc(r.unit)} · ${r.why === 'out' ? '<span class="over-text">out now</span>' : r.why === 'overdue' ? `<span class="over-text">due since ${dayLabel(r.runout)}</span>` : r.why === 'marked' ? 'on your list' : `runs out ${r.due === t ? 'today' : dayLabel(r.due)}`}</span></button>
+      <span class="num plan-amt">${r.cost ? money(r.cost) : '—'}</span>${tick(r.item)}
+    </div>`;
+  const vRow = (r) => `<div class="plan-row" data-week="${r.item.id}">
+      <button class="grow go-row plan-open" data-act="veg" data-id="${r.item.id}">${r.item.emoji || '🥬'} <b>${esc(r.item.en)}</b> <span class="hi">${esc(r.item.hi)}</span>
+        <span class="muted small block">~${number(r.qty)} ${esc(r.unit)}${r.usual ? ' a week' : ' · on your list'}</span></button>
+      <span class="num plan-amt">${r.cost ? money(r.cost) : '—'}</span>${tick(r.item)}
+    </div>`;
+  return `
+  <section class="card tight" data-test="week">
+    <div class="sum3">
+      <div><span class="k">Kitchen</span><span class="v">${money(wk.kitchenTotal)}</span></div>
+      <div><span class="k">Sabzi</span><span class="v">${money(wk.vegTotal)}</span></div>
+      <div><span class="k">This week</span><span class="v">${money(wk.kitchenTotal + wk.vegTotal)}</span></div>
+    </div>
+    <div class="wdays" aria-label="Kitchen items running out per day">${wk.days.map(dayDot).join('')}</div>
+    <div class="row gap-s week-acts">
+      ${w ? '<button class="btn small primary grow" data-act="week-all">All to list</button>' : ''}
+      <button class="icon-btn" data-act="week-copy" aria-label="Copy weekly list">${icon('copy')}</button>
+      <button class="icon-btn" data-act="week-share" aria-label="Share weekly list">${icon('share')}</button>
+    </div>
+  </section>
+  ${wk.kitchen.length ? `<section class="card tight">
+    <div class="card-head"><h2>🧺 Kitchen · next 7 days <span class="count">${wk.kitchen.length}</span></h2></div>
+    <div class="list">${wk.kitchen.map(kRow).join('')}</div>
+  </section>` : ''}
+  ${wk.veg.length ? `<section class="card tight">
+    <div class="card-head"><h2>🥬 Usual sabzi <span class="count">${wk.veg.length}</span></h2></div>
+    <div class="list">${wk.veg.map(vRow).join('')}</div>
+  </section>` : ''}
+  <p class="muted tiny">Quantities = your last pack (kitchen) or your usual week (sabzi, from the last 3 months). ₹ is at your last price.</p>`;
 }
 
 // ---------- sheets ----------
@@ -546,6 +597,12 @@ export function bind(root, rerender) {
       for (const r of p.kitchen) if (!r.item.need) await stock.setNeed(r.item, true);
       toast(`${p.kitchen.length} items added to the shopping list ✓`);
     }
+    else if (act === 'week-all') {
+      const wk = stock.weeklyPlan();
+      const add = [...wk.kitchen, ...wk.veg].map((r) => r.item).filter((it) => !it.need);
+      for (const it of add) await stock.setNeed(it, true);
+      toast(add.length ? `${add.length} item${add.length > 1 ? 's' : ''} added to the shopping list ✓` : 'All already on the list ✓');
+    }
     else if (act === 'finished') {
       bump(t);
       const ev2 = await stock.finished(item);
@@ -562,10 +619,10 @@ export function bind(root, rerender) {
       const q = (root.querySelector('[data-search]')?.value || state.q).trim();
       itemForm(null, { en: q.replace(/^./, (c) => c.toUpperCase()), kind: state.tab, thenBuy: true });
     }
-    else if (act === 'share' || act === 'copy') {
-      const text = stock.shoppingText();
+    else if (['share', 'copy', 'week-share', 'week-copy'].includes(act)) {
+      const text = act.startsWith('week') ? stock.weeklyText() : stock.shoppingText();
       let res;
-      if (act === 'share') res = await shareText('Kozy shopping list', text);
+      if (act.endsWith('share')) res = await shareText('Kozy shopping list', text);
       else {
         try { await navigator.clipboard.writeText(text); res = 'copied'; } catch { res = await shareText('Kozy shopping list', text); }
       }
