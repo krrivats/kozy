@@ -33,7 +33,7 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - `firestore.rules` — roles enforced server-side (ME_EMAIL / WIFE_EMAIL / VIEWER_EMAIL placeholders).
 - `tools/server.mjs` — local server (`npm start` → http://localhost:5173).
 - `tools/reminders/send.mjs` + `.github/workflows/reminders.yml` — free daily push reminders via GitHub Actions.
-- `tests/` — Playwright (`npm test`, 32 tests incl. unit, push and a real bill scan). Screenshots → `screenshots/`.
+- `tests/` — Playwright (`npm test`, 38 tests incl. unit, push and a real bill scan). Screenshots → `screenshots/`.
 - `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (rules), `npm run test:app` (real app in Firebase mode).
 
 ## Progress
@@ -47,5 +47,7 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - [x] v1.2 — edit any entry, salary-day checklist, budget manager, year view (Apr–Mar), insights, monthly plan,
       family spends from notes, bill photo scan (DECISIONS.md #51–61)
 - [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
-- [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
+- [ ] Maybe: better bill reading (paid AI vision) if free OCR isn't good enough
 - [x] v1.3 — redesign (glass, dock with centre +, ⚙️ in headers, ring gauge, quick actions), every row tappable to edit (DECISIONS #62–67)
+- [x] v1.5 / v1.6 — Appearance setting, milkman balance + part payments, new-month card, usual-spend limits; buffalo + cow milk (DECISIONS #68–75)
+- [x] v1.7 — Stock → 🗓️ Week grocery view, Overdue chip, small layout polish, bill-scan O/0 fix (DECISIONS #76–79). 38 tests pass.

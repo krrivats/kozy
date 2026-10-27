@@ -40,7 +40,7 @@ function quickActions() {
   const w = store.canWrite();
   const shopN = shoppingList().length;
   const milkBtn = !md
-    ? `<button class="qa-btn" data-act="milk-tick" data-test="chip-milk" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('milk')}</span><span class="qa-t">Tick milk ${number(milk.settings().litres)} L</span></button>`
+    ? `<button class="qa-btn" data-act="milk-tick" data-test="chip-milk" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('milk')}</span><span class="qa-t">Milk ${number(milk.settings().litres)} L</span></button>`
     : `<a class="qa-btn done" href="#/milk" data-test="chip-milk"><span class="qa-ic">${icon('check')}</span><span class="qa-t">${md.skip ? 'Milk skipped' : `Milk ✓ ${number(md.litres)} L`}</span></a>`;
   return `<section class="qa" data-test="quick">
     <button class="qa-btn primary" data-act="qa-add" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('plus')}</span><span class="qa-t">Add</span></button>

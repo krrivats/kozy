@@ -65,6 +65,7 @@ for (const scheme of ['light', 'dark']) {
     await page.goto(`/?today=${T}#/budget`); await page.locator('[data-view="year"]').click(); await shot(page, s('budget-year'));
     await page.locator('[data-view="cats"]').click();
     await page.goto(`/?today=${T}#/stock`); await page.locator('[data-tab="plan"]').click(); await shot(page, s('stock-plan'));
+    await page.locator('[data-tab="week"]').click(); await shot(page, s('stock-week'));
     await page.locator('[data-tab="kitchen"]').click();
     await page.locator('.irow[data-item="item-atta"] [data-act="detail"]').click();
     await page.locator('.sheet [data-edit-ev]').first().click(); await shot(page, s('edit-purchase')); await closeSheet(page);

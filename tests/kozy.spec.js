@@ -648,6 +648,18 @@ test('insights, year view, family spends, monthly plan', async ({ page }) => {
   await page.locator('[data-act="plan-all"]').click();
   await page.locator('[data-tab="kitchen"]').click();
   await expect(page.locator('[data-test="shopping"] [data-shop="item-atta"]')).toBeVisible();
+
+  await page.locator('[data-tab="week"]').click();
+  const week = page.locator('[data-test="week"]');
+  await expect(week).toContainText('This week');
+  await expect(week.locator('.wday')).toHaveCount(7);
+  await expect(page.locator('.plan-row[data-week="veg-onion"]')).toContainText('a week');
+  await page.locator('[data-act="week-all"]').click();
+  await expect(page.locator('#toast')).toContainText('shopping list');
+  await page.locator('[data-tab="kitchen"]').click();
+  await expect(page.locator('[data-test="shopping"] [data-shop="veg-onion"]')).toBeVisible();
+  // Past its run-out date but not finished → red "Overdue" chip.
+  await expect(page.locator('.irow[data-item="item-tea"] [data-test="chip"]')).toHaveText('Overdue');
 });
 
 test('guest mode: own sample copy on this device, separate from real data, exit to sign in', async ({ page }) => {
