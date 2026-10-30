@@ -1,61 +1,123 @@
 rules_version = '2';
 
-// Kozy — who can do what (keep the emails in sync with MEMBERS in js/config.js):
-//   OWNER  krrish@krrivats.app   everything; the only one who changes setup (limits, bills, goals, milk rate, reset)
-//   MEMBER preeti@krrivats.app   sees everything; adds spends, stock, sabzi, milk; changes/deletes only her own spends
-//   VIEWER (none yet)            sees everything; changes nothing
-// Publish: Firebase console → Firestore Database → Rules → paste this whole file → Publish.
+// Kozy — many households, each with its own people. Publish: Firebase console → Firestore Database → Rules → paste → Publish.
 //
-// Sign-in: Google accounts must have a verified email. Email + password accounts are accepted unverified,
-// because they are created by you in Firebase console → Authentication → Users and each email can exist only once
-// (also turn OFF Authentication → Settings → User actions → "Enable create (sign-up)").
+//   households/{hid}                  the household (name, createdBy) and, below it: entries, items, stock, milk, meta, devices
+//   memberships/{email}               { hid, role: admin | editor | viewer, name, ... }  ONE doc per email = one household
+//
+// Roles inside a household:
+//   admin   everything, including setup keys (budget, limits, bills, goals, milk rates), people, rename, delete
+//   editor  add / edit / delete ANY entry (spends, stock, sabzi, milk), no setup, no people
+//   viewer  read only
+//
+// Safety:
+//  - The email must be VERIFIED (Google does this itself; email+password users tap the link Firebase mails them).
+//  - Households can never read each other: every access checks the caller's own membership.
+//  - Only an admin can add people, and only to THEIR household; nobody can overwrite another household's membership.
+//  - Creating a household and its first admin membership must happen in the same batch.
+//  - The first two family accounts (krrish, preeti) keep working on the old household "kozy-home" with no data move.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function email() { return request.auth.token.email; }
-    function verified() {
-      return request.auth != null
-        && (request.auth.token.email_verified == true || request.auth.token.firebase.sign_in_provider == 'password');
+    // ---------- who is calling ----------
+    function authed() { return request.auth != null && request.auth.token.email != null; }
+    function me() { return request.auth.token.email.lower(); }
+    function memPath(email) { return /databases/$(database)/documents/memberships/$(email); }
+
+    // Accounts made by hand in the console before sign-up opened. Their emails already exist, so nobody else can register them.
+    function legacy() {
+      return authed()
+        && request.auth.token.firebase.sign_in_provider == 'password'
+        && me() in ['krrish@krrivats.app', 'preeti@krrivats.app'];
     }
-    function isOwner() { return verified() && email() == 'krrish@krrivats.app'; }
-    function isMember() { return verified() && email() in ['preeti@krrivats.app']; }
-    function isViewer() { return verified() && email() in ['VIEWER_EMAIL']; }
-    function canRead() { return isOwner() || isMember() || isViewer(); }
-    function canAdd() { return isOwner() || isMember(); }
-    // meta keys that only the owner may change
+    function verified() { return authed() && (request.auth.token.email_verified == true || legacy()); }
+    function legacyRole(hid) {
+      return hid == 'kozy-home' && legacy() ? (me() == 'krrish@krrivats.app' ? 'admin' : 'editor') : 'none';
+    }
+
+    // ---------- role of the caller in household hid ('admin' | 'editor' | 'viewer' | 'none') ----------
+    function hasMem() { return exists(memPath(me())); }
+    function memData() { return get(memPath(me())).data; }
+    function roleIn(hid) { return hasMem() && memData().hid == hid ? memData().role : 'none'; }
+    function roleOf(hid) { return verified() ? (legacyRole(hid) != 'none' ? legacyRole(hid) : roleIn(hid)) : 'none'; }
+    function isMemberOf(hid) { return roleOf(hid) in ['admin', 'editor', 'viewer']; }
+    function canAdd(hid) { return roleOf(hid) in ['admin', 'editor']; }
+    function isAdminOf(hid) { return roleOf(hid) == 'admin'; }
+
+    // meta keys that only an admin may change
     function isSetupKey(key) {
       return key in ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo', 'budgetTotal', 'family', 'checklistSeeded'];
     }
 
-    // The ONE shared household document
+    // ---------- people ----------
+    match /memberships/{memEmail} {
+      // yourself, or an admin of that person's household
+      allow get: if verified() && (memEmail == me() || isAdminOf(resource.data.hid));
+      // an admin lists the people of their own household (query must filter on their hid)
+      allow list: if verified() && hasMem() && memData().role == 'admin' && resource.data.hid == memData().hid;
+
+      allow create: if verified()
+        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid'])
+        && request.resource.data.role in ['admin', 'editor', 'viewer']
+        && (
+          // (a) you start a brand-new household: it is created in the same batch and did not exist before
+          (memEmail == me() && request.resource.data.role == 'admin' && !hasMem()
+            && !exists(/databases/$(database)/documents/households/$(request.resource.data.hid))
+            && existsAfter(/databases/$(database)/documents/households/$(request.resource.data.hid))
+            && getAfter(/databases/$(database)/documents/households/$(request.resource.data.hid)).data.createdBy == me())
+          // (b) the two family accounts claim the old household
+          || (memEmail == me() && request.resource.data.hid == 'kozy-home' && legacyRole('kozy-home') == request.resource.data.role)
+          // (c) an admin adds someone to THEIR household (create only: an existing membership can never be overwritten)
+          || isAdminOf(request.resource.data.hid)
+        );
+
+      allow update: if verified()
+        && request.resource.data.hid == resource.data.hid
+        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid'])
+        && request.resource.data.role in ['admin', 'editor', 'viewer']
+        && (
+          isAdminOf(resource.data.hid)                                                  // admin: change role / name
+          || (memEmail == me() && request.resource.data.role == resource.data.role)     // you: name, joinedAt, uid only
+        );
+
+      // admin removes a person; anyone may leave (the app stops the last admin from leaving)
+      allow delete: if verified() && (isAdminOf(resource.data.hid) || memEmail == me());
+    }
+
+    // ---------- households ----------
     match /households/{householdId} {
-      allow read: if canRead();
-      allow write: if isOwner();
+      allow read: if isMemberOf(householdId);
+      allow create: if verified() && !hasMem()
+        && request.resource.data.createdBy == me()
+        && existsAfter(memPath(me()))
+        && getAfter(memPath(me())).data.hid == householdId
+        && getAfter(memPath(me())).data.role == 'admin';
+      allow update, delete: if isAdminOf(householdId);
 
-      // Spends: members add with their own email, and may change/delete only their own
+      // Spends: an editor adds with their own email and may fix or delete any spend (who first added it stays recorded)
       match /entries/{id} {
-        allow read: if canRead();
-        allow create: if isOwner() || (isMember() && request.resource.data.byEmail == email());
-        allow update: if isOwner() || (isMember() && resource.data.byEmail == email() && request.resource.data.byEmail == email());
-        allow delete: if isOwner() || (isMember() && resource.data.byEmail == email());
+        allow read: if isMemberOf(householdId);
+        allow create: if isAdminOf(householdId) || (canAdd(householdId) && request.resource.data.byEmail == me());
+        allow update: if isAdminOf(householdId) || (canAdd(householdId) && request.resource.data.byEmail == resource.data.byEmail);
+        allow delete: if canAdd(householdId);
       }
 
-      // Kitchen items, sabzi, purchases, milk days: the whole family keeps these up to date
-      match /items/{id} { allow read: if canRead(); allow write: if canAdd(); }
-      match /stock/{id} { allow read: if canRead(); allow write: if canAdd(); }
-      match /milk/{id}  { allow read: if canRead(); allow write: if canAdd(); }
+      // Kitchen items, sabzi, purchases, milk days: admin and editors keep these up to date
+      match /items/{id} { allow read: if isMemberOf(householdId); allow write: if canAdd(householdId); }
+      match /stock/{id} { allow read: if isMemberOf(householdId); allow write: if canAdd(householdId); }
+      match /milk/{id}  { allow read: if isMemberOf(householdId); allow write: if canAdd(householdId); }
 
-      // Settings: setup keys owner-only; bill paid-state / milk bill link members may write
+      // Settings: setup keys admin-only; bill paid-state / milk bill link editors may write
       match /meta/{key} {
-        allow read: if canRead();
-        allow write: if isOwner() || (isMember() && !isSetupKey(key));
+        allow read: if isMemberOf(householdId);
+        allow write: if isAdminOf(householdId) || (canAdd(householdId) && !isSetupKey(key));
       }
 
-      // Phones registered for reminders (read only by the owner and the reminder job)
+      // Phones registered for reminders (read only by the admin and the reminder job)
       match /devices/{id} {
-        allow read: if isOwner();
-        allow create, update: if canRead() && request.resource.data.email == email();
-        allow delete: if isOwner() || (canRead() && resource.data.email == email());
+        allow read: if isAdminOf(householdId);
+        allow create, update: if isMemberOf(householdId) && request.resource.data.email == me();
+        allow delete: if isAdminOf(householdId) || (isMemberOf(householdId) && resource.data.email == me());
       }
     }
 
