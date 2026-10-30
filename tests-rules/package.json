@@ -7,6 +7,8 @@
     "pretest": "node make-rules.mjs",
     "test": "firebase emulators:exec --only firestore --project demo-kozy \"node --test --test-reporter=spec rules.test.mjs\"",
     "pretest:app": "node make-rules.mjs",
+    "predemo": "node make-rules.mjs",
+    "demo": "firebase emulators:exec --only auth,firestore --project demo-kozy \"node ../tools/server.mjs 5173\"",
     "test:app": "firebase emulators:exec --only auth,firestore --project demo-kozy \"npx playwright test --config ../playwright.config.js firebase-app\""
   },
   "devDependencies": {

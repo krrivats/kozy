@@ -63,3 +63,9 @@ Agreed choices (30 Oct 2026):
 - **Spam households**: anyone with a verified email can make one. Fine for now; limits can be added later.
 - **Unmerged branch** `claude/weekly-grocery-polish` (v1.7) touches Stock and Settings. Merge or drop it before step 3 to avoid clashes.
 - **Verification emails** come from a Firebase address and can land in spam. The screen says "check Spam" and has Resend.
+
+## Status (30 Oct 2026, night)
+- Phases 1–5 DONE and committed on `multi-user`; not merged, not pushed, not published.
+- Tests green: `npx playwright test` (36), `tests-rules` `npm test` (14), `npm run test:app` (6, real app on emulators).
+- Try it: `cd tests-rules && npm run demo`, open http://localhost:5173/?emulator=1
+- Left for you (needs your Firebase login): the 4 console steps above, then merge + push.

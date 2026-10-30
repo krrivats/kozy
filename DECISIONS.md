@@ -117,3 +117,20 @@ Some replace v1 decisions above (marked ♻️).
 | 73 | **Milk types**, each with its own litres/day and ₹/L (default 🐃 Buffalo 2 L + 🐄 Cow 1.5 L; add or remove types in Settings → Milk). A day stores litres and rate per type. | You buy buffalo and cow milk at different prices. |
 | 74 | **One tap logs every type** at its usual amount; the message offers **Change**, which opens the day editor (one − / + per type). Tapping a calendar day opens the same editor. | "One tap and done, but I can open it, change and save." |
 | 75 | A new rate applies from that day on; **old days keep their rate**. Older one-milk days still count (shown as "Milk"). | The milkman's account must never change for days already past. |
+
+---
+
+## v2.0 (30 Oct) — many households (multi-user)
+
+| # | Decision | Why |
+|---|---|---|
+| 76 | **Anyone can sign up** (email + password, or Google) and starts their own household as **Admin**. One email = one household. | You want Kozy usable by other families, not one hardcoded one. |
+| 77 | Roles: **Admin** (setup + people), **Editor** (adds/edits/deletes ANY entry, no setup), **Viewer** (read only). Several Admins allowed; the last Admin can't be removed or leave. | Your choices. Editors fixing each other's spends is what a family does. |
+| 78 | Password accounts must **verify their email** (Check-your-inbox screen: Resend with 30 s wait, "I've verified", re-checks when you return to the app). Google is automatic. | With open sign-up anyone could otherwise claim an invited address. |
+| 79 | `memberships/{email}` holds household + role; households get a random id. Create-household = ONE batch (household + own Admin membership). | Rules check the caller's own membership, so households never see each other. |
+| 80 | **krrish / preeti keep working** on `kozy-home` with no data move; the app writes their membership docs on first sign-in. Typing just "krrish" still works quietly. | Your family's live data must not be touched. |
+| 81 | Settings → **👥 Household**: rename, people list (Joined / Invited), Add person (+ invite text to share), change role, remove. Editors/Viewers see their role and can Leave. Account has Change password (reset email) and Sign out. Hidden in local/guest mode. | One place for everything about people. |
+| 82 | If an Admin removes you or changes your role while Kozy is open, the app notices when it comes to the front (and once a minute): removed → clear message; role changed → reloads with new rights. | Firestore listeners don't re-check when only the membership doc changes. |
+| 83 | Reminders job loops over **every household with phones** (`devices` group), one push per household. One failing household never stops the rest. | Each family gets its own reminder. |
+| 84 | Unit tests now pin the clock to 17 Oct 2026. | One test was failing only because the real date moved on. |
+| 85 | Known limit: Firestore's offline cache on a shared phone is not wiped on sign-out. Fine for family phones; revisit for shared devices. | Honest note. |

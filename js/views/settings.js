@@ -1,5 +1,5 @@
-// SETTINGS — folding sections. Setup (limits, bills, goals, card, milk, reset) is owner-only;
-// members and viewers see it read-only.
+// SETTINGS — folding sections. Setup (limits, bills, goals, milk, reset) is admin-only;
+// editors and viewers see it read-only. 👥 Household (Firebase mode only) is in team.js.
 import * as store from '../store.js';
 import * as budget from '../logic/budget.js';
 import * as milk from '../logic/milk.js';
@@ -11,7 +11,8 @@ import { icon, toast, confirmSheet, download, bar, savedTheme, applyTheme } from
 import { header } from './common.js';
 import { openItemForm } from './stock.js';
 import { typesEditor, readTypes, wireTypesEditor } from './milk.js';
-import { APP_VERSION, USE_FIREBASE } from '../config.js';
+import { APP_VERSION } from '../config.js';
+import { teamBody, loadTeam, bindTeam } from './team.js';
 
 const EMOJIS = ['🧾', '🎓', '💊', '🚗', '🎁', '👕', '🍽️', '📚', '🐄', '🛠️'];
 const openSections = new Set(); // all folded at first: short screen, open what you need
@@ -130,7 +131,7 @@ export function render() {
   const ms = milk.settings();
   const adapter = store.getAdapter();
   const fire = adapter?.name === 'firestore';
-  const roleName = { owner: 'Owner (full access)', member: 'Member (adds spends, stock, milk)', viewer: 'View only' }[store.role()] || '';
+  const roleName = { owner: 'Admin (full access)', member: 'Editor (adds and edits everything)', viewer: 'Viewer (view only)' }[store.role()] || '';
   return `
   ${header('Settings', `Budget ${money(budget.totalLimit())} / month`)}
 
@@ -175,10 +176,14 @@ export function render() {
       ${[['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']].map(([k, l]) => `<button type="button" class="${savedTheme() === k ? 'on' : ''}" data-act="theme" data-theme-v="${k}">${l}</button>`).join('')}
     </div>
     <p class="muted tiny">Auto follows your phone (light by day, dark at night). Saved on this phone only.</p>`, { auto: 'Auto', light: 'Light', dark: 'Dark' }[savedTheme()])}
+  ${fire ? section('household', '👥 Household', teamBody(), esc(adapter.householdName || '')) : ''}
   ${section('account', '👤 Account', `
     <p class="small"><b>${esc(store.currentUserLabel())}</b> · ${roleName}</p>
-    ${fire && adapter.isSignedIn?.() ? `<p class="small muted">${esc(adapter.userEmail())}</p>
-      <button class="btn ghost" data-act="signout">Sign out</button>` : `
+    ${fire && adapter.isSignedIn?.() ? `<p class="small muted" data-test="acct-email">${esc(adapter.userEmail())}</p>
+      <div class="row gap">
+        <button class="btn ghost grow" data-act="pwreset" data-test="pwreset">Change password</button>
+        <button class="btn ghost grow" data-act="signout">Sign out</button>
+      </div>` : `
       <p class="small">Local mode: data is saved only in this browser.</p>
       <div class="row gap">
         <a class="btn ghost grow" href="?role=member#/home" data-test="preview-member">👀 Wife's view</a>
@@ -192,6 +197,7 @@ function readRows(form, fields) {
 }
 
 export function bind(root, rerender) {
+  if (store.getAdapter()?.name === 'firestore') { bindTeam(root, rerender); loadTeam(rerender); }
   wireTypesEditor(root);
   // remember which sections are open across re-renders
   root.addEventListener('toggle', (ev) => {
@@ -264,6 +270,11 @@ export function bind(root, rerender) {
         toast('All data reset');
         location.hash = '#/home';
       }
+    } else if (act === 'pwreset') {
+      try {
+        await store.getAdapter().sendReset(store.currentUserEmail());
+        toast(`Reset link sent to ${store.currentUserEmail()} ✓`);
+      } catch (e) { toast(e.message, 'err'); }
     } else if (act === 'signout') {
       await store.getAdapter().signOut();
       location.reload();

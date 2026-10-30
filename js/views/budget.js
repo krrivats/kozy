@@ -250,7 +250,7 @@ function goalSheet(id) {
       </div>
       <label class="field"><span>Counts money added to</span><select class="input" name="cat" ${dis}>${budget.cats().map((c) => `<option value="${c.id}" ${c.id === g.cat ? 'selected' : ''}>${c.emoji} ${esc(c.name)}</option>`).join('')}</select></label>
       ${owner ? `<div class="row gap"><button type="button" class="btn ghost danger-text" data-del>${icon('trash')}</button>
-        <button class="btn primary grow" type="submit" data-save>Save goal</button></div>` : '<p class="muted small">Only the owner can change goals.</p>'}
+        <button class="btn primary grow" type="submit" data-save>Save goal</button></div>` : '<p class="muted small">Only the admin can change goals.</p>'}
     </form>`);
   const f = el.querySelector('form');
   f.addEventListener('submit', async (ev) => {

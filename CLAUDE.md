@@ -20,10 +20,11 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 ## How the code is laid out
 - `index.html` — app shell (tab bar, FAB, sheet + toast containers).
 - `css/app.css` — all styles. Colour tokens on `:root`, dark mode via `prefers-color-scheme`.
-- `js/config.js` — `USE_FIREBASE` flag, `MEMBERS` (email → label + role: owner / member / viewer), `?emulator=1` test mode.
+- `js/config.js` — `USE_FIREBASE` flag, `LEGACY` (krrish/preeti auto-claim `kozy-home`), role names, `loginEmail()`, `?emulator=1` test mode. Roles in Firestore: admin / editor / viewer (app-internal: owner / member / viewer).
 - `js/firebase-config.js` — Firebase web config + `VAPID_KEY` (placeholders until the user pastes real values).
 - `js/store.js` — ONE data API with role guards (`ReadOnlyError`). Picks `LocalAdapter` or `FirestoreAdapter`.
-- `js/adapters/local.js` (`?role=member|viewer` previews), `js/adapters/firestore.js` (auth, live sync, push token).
+- `js/adapters/local.js` (`?role=member|viewer` previews), `js/adapters/firestore.js` (sign up/in/Google/reset, `resolve()` → signed-out | unverified | no-household | ready, membership → dynamic `hid`, people functions, live sync, push token).
+- `js/views/auth.js` (`runGate`: login / create account / check inbox / create household), `js/views/team.js` (Settings → 👥 Household).
 - `js/logic/*.js` — pure maths, no DOM: `budget` (cats, budget total, bills + salary-day checklist, goals, summary,
   insights, year view, family spends), `stock` (kitchen countdown, sabzi prices, edit purchase, monthly use + plan),
   `milk`, `quick` (smart quick-add parser), `scan` (bill photo → lines, Tesseract.js from CDN), `reminders`, `activity`, `demo`, `format`.
@@ -34,7 +35,7 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - `tools/server.mjs` — local server (`npm start` → http://localhost:5173).
 - `tools/reminders/send.mjs` + `.github/workflows/reminders.yml` — free daily push reminders via GitHub Actions.
 - `tests/` — Playwright (`npm test`, 32 tests incl. unit, push and a real bill scan). Screenshots → `screenshots/`.
-- `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (rules), `npm run test:app` (real app in Firebase mode).
+- `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (14 rules tests), `npm run test:app` (real app: sign up → household → roles → removal → legacy account), `npm run demo` (emulators + app at http://localhost:5173/?emulator=1 to try by hand; inbox screen has an "[Emulator] auto-verify" button).
 
 ## Progress
 - [x] LIVE 2026-10-18: https://krrivats.github.io/kozy/ (repo krrivats/kozy, GitHub Pages from main /root),
@@ -46,6 +47,9 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
       goals, who-spent, activity, summary, undo, reminders, compact UI (see PHASE2_PLAN.md, DECISIONS.md #24–50)
 - [x] v1.2 — edit any entry, salary-day checklist, budget manager, year view (Apr–Mar), insights, monthly plan,
       family spends from notes, bill photo scan (DECISIONS.md #51–61)
+- [x] MULTI-USER built on branch `multi-user` (NOT published): anyone signs up, owns a household as Admin, adds Editors/Viewers
+      (MULTI_USER_PLAN.md, DECISIONS #76+). All tests pass. TO PUBLISH: paste firestore.rules in Firebase console, turn ON sign-up
+      (Authentication → Settings → User actions), set email template sender "Kozy", then merge `multi-user` into `main` and push.
 - [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
 - [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
 - [x] v1.3 — redesign (glass, dock with centre +, ⚙️ in headers, ring gauge, quick actions), every row tappable to edit (DECISIONS #62–67)

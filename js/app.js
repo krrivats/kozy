@@ -9,7 +9,7 @@ import * as stockView from './views/stock.js';
 import * as milkView from './views/milk.js';
 import * as settingsView from './views/settings.js';
 import { openSpendSheet } from './views/spend-sheet.js';
-import { renderLogin } from './views/login.js';
+import { runGate } from './views/auth.js';
 import { toast, closeSheet } from './ui.js';
 
 const ROUTES = { home, budget: budgetView, stock: stockView, milk: milkView, settings: settingsView };
@@ -78,13 +78,11 @@ async function start() {
   const adapter = await store.initStore();
   const go = async () => {
     const role = store.role();
-    if (!role) {
-      const err = new Error('not-a-member');
-      err.code = 'not-a-member';
-      throw err;
-    }
+    if (!role) throw new Error('No household found for this account.');
     document.body.classList.add(`role-${role}`);
+    if (adapter.name === 'firestore') { adapter.onAccessLost = accessLost; watchMembership(adapter); }
     await store.loadData();
+    await applySetup(adapter);
     if (GUEST && !store.list('entries').length) {
       const { loadDemo } = await import('./logic/demo.js'); // a guest starts with a realistic sample month
       await loadDemo();
@@ -113,8 +111,50 @@ async function start() {
     render();
     document.body.classList.add('ready');
   };
-  if (adapter.needsAuth && !adapter.isSignedIn()) renderLogin(adapter, () => go().catch(showError));
-  else await go();
+  if (adapter.needsAuth) await runGate(adapter); // sign in / verify email / create household, then start
+  await go();
+}
+
+// First run of a brand-new household: apply what was chosen on the onboarding screen (once).
+async function applySetup(adapter) {
+  const setup = adapter.pendingSetup;
+  if (!setup) return;
+  adapter.pendingSetup = null;
+  if (setup.demo) {
+    const { loadDemo } = await import('./logic/demo.js');
+    await loadDemo();
+  }
+  if (setup.budget) await store.setMeta('budgetTotal', setup.budget);
+}
+
+// An admin may remove this person or change their role while the app is open: look again when the app comes
+// back to the front, and once a minute while it is showing.
+function watchMembership(adapter) {
+  let busy = false;
+  const check = async () => {
+    if (busy || document.visibilityState === 'hidden') return;
+    busy = true;
+    const r = await adapter.checkMembership();
+    busy = false;
+    if (r === 'removed') accessLost();
+    else if (r === 'changed') location.reload(); // new role = new rights: start again
+  };
+  window.addEventListener('focus', check);
+  document.addEventListener('visibilitychange', check);
+  setInterval(check, 60000);
+}
+
+// Firestore stopped letting us read: the admin removed this person while the app was open.
+function accessLost() {
+  document.body.classList.add('no-tabs');
+  document.getElementById('view').innerHTML = `<div class="card stack" data-test="access-lost"><h2>You are no longer in this household</h2>
+    <p class="muted">An admin removed you, so Kozy can’t show its data any more. You can start your own household or ask to be added again.</p>
+    <button class="btn primary" onclick="location.reload()">OK</button>
+    <button class="btn ghost" id="kz-signout">Sign out</button></div>`;
+  document.getElementById('kz-signout').addEventListener('click', async () => {
+    await store.getAdapter()?.signOut?.();
+    location.reload();
+  });
 }
 
 start().catch(showError);
@@ -123,18 +163,15 @@ start().catch(showError);
 function showError(e) {
   console.error(e);
   const email = store.getAdapter()?.userEmail?.() || '';
-  const notMember = e?.code === 'not-a-member';
   const denied = e?.code === 'permission-denied';
-  const msg = notMember
-    ? `This account cannot open the family data: ${email || 'this email'} is not in Kozy's family list. Sign in with a family email.`
-    : denied
-      ? `This account cannot open the family data: Firebase refused ${email || 'this account'}. Usually the rules in Firebase console are an older copy — publish the latest firestore.rules (Firestore Database → Rules → paste → Publish), then tap Reload.`
-      : String(e?.message || e);
+  const msg = denied
+    ? `Firebase refused ${email || 'this account'}. Usually the rules in Firebase console are an older copy — publish the latest firestore.rules (Firestore Database → Rules → paste → Publish), then tap Reload. Or an admin just removed you from the household.`
+    : String(e?.message || e);
   const detail = [e?.code, email].filter(Boolean).join(' · ');
   document.getElementById('view').innerHTML = `<div class="card stack" data-test="start-error"><h2>Kozy could not start</h2><p class="muted">${msg.replace(/</g, '&lt;')}</p>
     ${detail ? `<p class="muted tiny">Details: ${detail.replace(/</g, '&lt;')}</p>` : ''}
     <button class="btn primary" onclick="location.reload()">Reload</button>
-    ${notMember || denied ? '<button class="btn ghost" id="kz-signout">Sign out</button>' : ''}</div>`;
+    ${denied ? '<button class="btn ghost" id="kz-signout">Sign out</button>' : ''}</div>`;
   document.getElementById('kz-signout')?.addEventListener('click', async () => {
     await store.getAdapter()?.signOut?.();
     location.reload();

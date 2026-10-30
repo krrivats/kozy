@@ -1,13 +1,11 @@
-// FirestoreAdapter — same interface as LocalAdapter, but data lives in Firestore so both phones share it.
-// Layout: households/{HOUSEHOLD_ID}              (the ONE shared household document)
-//         households/{HOUSEHOLD_ID}/{col}/{id}   (entries, items, stock, milk, meta)
-//         households/{HOUSEHOLD_ID}/devices/{id} (phones that turned on reminders)
+// FirestoreAdapter — same interface as LocalAdapter, but data lives in Firestore so the whole household shares it.
+// Layout: memberships/{email}                    { hid, role: admin|editor|viewer, name, ... }  (one email = one household)
+//         households/{hid}                       the household (name, createdBy)
+//         households/{hid}/{col}/{id}            (entries, items, stock, milk, meta)
+//         households/{hid}/devices/{id}          (phones that turned on reminders)
 // Firebase SDK comes from the official CDN (modular build) — no npm, no build step.
-// OFF until config.js says USE_FIREBASE = true.
 import { firebaseConfig, VAPID_KEY } from '../firebase-config.js';
-import { HOUSEHOLD_ID, MEMBERS as REAL_MEMBERS, EMULATOR, EMULATOR_MEMBERS } from '../config.js';
-
-const MEMBERS = EMULATOR ? EMULATOR_MEMBERS : REAL_MEMBERS;
+import { EMULATOR, LEGACY, LEGACY_HID, ROLE_TO_INTERNAL } from '../config.js';
 
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2';
 const COLLECTIONS = ['entries', 'items', 'stock', 'milk', 'meta'];
@@ -17,11 +15,22 @@ function clean(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// A random, unguessable household id.
+function newHid() {
+  const b = crypto.getRandomValues(new Uint8Array(12));
+  return `h${[...b].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+
 export class FirestoreAdapter {
   name = 'firestore';
   needsAuth = true;
   user = null;
   unsubs = [];
+  hid = null;
+  membership = null; // { hid, role, name, ... } of the signed-in person
+  householdName = '';
+  pendingSetup = null; // { budget, demo } chosen on the onboarding screen, applied once after the first load
+  onAccessLost = null; // set by app.js: called when Firestore stops letting us read (removed from the household)
 
   async init() {
     const [appMod, authMod, fsMod] = await Promise.all([
@@ -49,21 +58,31 @@ export class FirestoreAdapter {
 
   isSignedIn() { return !!this.user; }
 
-  #member() {
-    const email = (this.user?.email || '').toLowerCase();
-    const key = Object.keys(MEMBERS).find((k) => k.toLowerCase() === email);
-    return key ? MEMBERS[key] : null;
-  }
+  // ---------- who am I ----------
+  // 'owner' (admin) | 'member' (editor) | 'viewer' | null (no household yet)
+  role() { return ROLE_TO_INTERNAL[this.membership?.role] || null; }
+
+  // The membership role as written in Firestore: admin | editor | viewer.
+  memberRole() { return this.membership?.role || null; }
 
   userLabel() {
-    return this.#member()?.label || this.user?.displayName?.split(' ')[0] || this.user?.email || 'Me';
+    return this.membership?.name || this.user?.displayName?.split(' ')[0] || (this.user?.email || 'Me').split('@')[0];
   }
 
-  // Unknown emails get no role: the app shows "not allowed" and the rules block them anyway.
-  role() { return this.#member()?.role || null; }
+  userEmail() { return (this.user?.email || '').toLowerCase(); }
 
-  userEmail() { return this.user?.email || ''; }
+  #displayName() {
+    return (this.user?.displayName || '').trim() || (this.user?.email || 'Me').split('@')[0];
+  }
 
+  #isLegacy() {
+    const email = this.userEmail();
+    return !!LEGACY[email] && (this.user?.providerData || []).some((p) => p.providerId === 'password');
+  }
+
+  #memRef(email) { return this.F.doc(this.db, 'memberships', email); }
+
+  // ---------- sign in / up ----------
   async signInGoogle() {
     const provider = new this.A.GoogleAuthProvider();
     // Popups are unreliable in an iPhone home-screen app, so use redirect there.
@@ -83,12 +102,30 @@ export class FirestoreAdapter {
     return res.user;
   }
 
-  async createEmailAccount(email, password) {
+  async createEmailAccount(name, email, password) {
     const res = await this.A.createUserWithEmailAndPassword(this.auth, email, password);
+    if (name) await this.A.updateProfile(res.user, { displayName: name });
     // firestore.rules only trusts verified emails, so send the verification mail right away.
     await this.A.sendEmailVerification(res.user);
     this.user = res.user;
     return res.user;
+  }
+
+  async resendVerification() {
+    await this.A.sendEmailVerification(this.user);
+  }
+
+  // After the person taps the verify link in their mail: refresh the user and the token (the rules read email_verified from it).
+  async reloadUser() {
+    if (!this.user) return null;
+    await this.user.reload();
+    await this.user.getIdToken(true);
+    this.user = this.auth.currentUser;
+    return this.user;
+  }
+
+  async sendReset(email) {
+    await this.A.sendPasswordResetEmail(this.auth, email);
   }
 
   async signOut() {
@@ -96,9 +133,113 @@ export class FirestoreAdapter {
     this.unsubs = [];
     await this.A.signOut(this.auth);
     this.user = null;
+    this.membership = null;
+    this.hid = null;
   }
 
-  // Phone reminders: ask permission, get this phone's push token, save it for the daily reminder job.
+  // ---------- where does this person belong? ----------
+  // → { state: 'signed-out' | 'unverified' | 'no-household' | 'ready' }
+  async resolve() {
+    const F = this.F;
+    if (!this.user) return { state: 'signed-out' };
+    const legacy = this.#isLegacy();
+    if (!this.user.emailVerified && !legacy) return { state: 'unverified' };
+    const email = this.userEmail();
+    const ref = this.#memRef(email);
+    let snap = await F.getDoc(ref);
+    if (!snap.exists() && legacy) {
+      // The two old family accounts claim the old household (rules allow exactly this).
+      const now = Date.now();
+      await F.setDoc(ref, { hid: LEGACY_HID, role: LEGACY[email].role, name: LEGACY[email].name, addedBy: email, addedAt: now, joinedAt: now, uid: this.user.uid });
+      snap = await F.getDoc(ref);
+    }
+    if (!snap.exists()) { this.membership = null; this.hid = null; return { state: 'no-household' }; }
+    const m = snap.data();
+    this.membership = m;
+    this.hid = m.hid;
+    if (!m.joinedAt || m.uid !== this.user.uid) {
+      // First time this person is in: mark them as joined (the Household list shows Joined instead of Invited).
+      const patch = { joinedAt: m.joinedAt || Date.now(), uid: this.user.uid };
+      try { await F.updateDoc(ref, patch); this.membership = { ...m, ...patch }; } catch (e) { console.warn('joinedAt', e); }
+    }
+    try {
+      const h = await F.getDoc(F.doc(this.db, 'households', this.hid));
+      this.householdName = h.exists() ? (h.data().name || '') : '';
+    } catch (e) { console.warn('household name', e); }
+    return { state: 'ready' };
+  }
+
+  // Is this person still in the same household with the same role? One small read from the server.
+  // → 'ok' | 'removed' | 'changed' | 'unknown' (offline). Firestore listeners are NOT re-checked when only the membership doc changes.
+  async checkMembership() {
+    try {
+      const snap = await this.F.getDocFromServer(this.#memRef(this.userEmail()));
+      if (!snap.exists()) return 'removed';
+      const m = snap.data();
+      return m.hid !== this.hid || m.role !== this.membership?.role ? 'changed' : 'ok';
+    } catch (e) {
+      return e?.code === 'permission-denied' ? 'removed' : 'unknown';
+    }
+  }
+
+  // Start a brand-new household: it and its first admin membership are written in ONE batch (the rules require that).
+  async createHousehold({ name }) {
+    const F = this.F;
+    const email = this.userEmail();
+    const hid = newHid();
+    const now = Date.now();
+    const person = this.#displayName();
+    const batch = F.writeBatch(this.db);
+    batch.set(F.doc(this.db, 'households', hid), { name: String(name || '').trim() || `${person}’s home`, createdBy: email });
+    batch.set(this.#memRef(email), { hid, role: 'admin', name: person, addedBy: email, addedAt: now, joinedAt: now, uid: this.user.uid });
+    await batch.commit();
+  }
+
+  // ---------- household + people (Settings → Household) ----------
+  async renameHousehold(name) {
+    const n = String(name || '').trim();
+    if (!n) return;
+    await this.F.updateDoc(this.F.doc(this.db, 'households', this.hid), { name: n });
+    this.householdName = n;
+  }
+
+  async listMembers() {
+    const F = this.F;
+    const snap = await F.getDocs(F.query(F.collection(this.db, 'memberships'), F.where('hid', '==', this.hid)));
+    return snap.docs.map((d) => ({ ...d.data(), email: d.id }));
+  }
+
+  async addMember({ name, email, role }) {
+    const e = String(email || '').trim().toLowerCase();
+    try {
+      await this.F.setDoc(this.#memRef(e), { hid: this.hid, role, name: String(name || '').trim() || e.split('@')[0], addedBy: this.userEmail(), addedAt: Date.now() });
+    } catch (err) {
+      if (err?.code === 'permission-denied') {
+        const x = new Error('Could not add this email. It may already be in another household.');
+        x.code = 'already-elsewhere';
+        throw x;
+      }
+      throw err;
+    }
+  }
+
+  async setMemberRole(email, role) {
+    await this.F.updateDoc(this.#memRef(email), { role });
+    if (email === this.userEmail()) this.membership = { ...this.membership, role };
+  }
+
+  async removeMember(email) {
+    await this.F.deleteDoc(this.#memRef(email));
+  }
+
+  async leaveHousehold() {
+    await this.F.deleteDoc(this.#memRef(this.userEmail()));
+    this.membership = null;
+    this.hid = null;
+  }
+
+  // ---------- phone reminders ----------
+  // Ask permission, get this phone's push token, save it for the daily reminder job.
   async enablePush() {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) {
       throw new Error('This browser can’t show reminders. On iPhone: add Kozy to the Home Screen and open it from there.');
@@ -112,28 +253,24 @@ export class FirestoreAdapter {
     const token = await M.getToken(M.getMessaging(this.app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
     const id = [...new Uint8Array(hash)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
-    await this.F.setDoc(this.F.doc(this.db, 'households', HOUSEHOLD_ID, 'devices', id), {
+    await this.F.setDoc(this.F.doc(this.db, 'households', this.hid, 'devices', id), {
       token, email: this.userEmail(), label: this.userLabel(), ua: navigator.userAgent.slice(0, 120), createdAt: Date.now(),
     });
     return true;
   }
 
+  // ---------- data ----------
   #colRef(col) {
-    return this.F.collection(this.db, 'households', HOUSEHOLD_ID, col);
+    return this.F.collection(this.db, 'households', this.hid, col);
   }
 
   #docRef(col, id) {
-    return this.F.doc(this.db, 'households', HOUSEHOLD_ID, col, id);
+    return this.F.doc(this.db, 'households', this.hid, col, id);
   }
 
   // Loads every collection and keeps listening. onRemote(col, docs) fires on later changes.
   async load(onRemote, cols = COLLECTIONS) {
     const F = this.F;
-    if (this.role() === 'owner') {
-      await F.setDoc(F.doc(this.db, 'households', HOUSEHOLD_ID),
-        { name: 'Kozy home', lastSeenAt: Date.now() }, { merge: true });
-    }
-
     const data = {};
     await Promise.all(cols.map((col) => new Promise((resolve, reject) => {
       let first = true;
@@ -141,7 +278,11 @@ export class FirestoreAdapter {
         const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
         if (first) { first = false; data[col] = docs; resolve(); }
         else onRemote?.(col, docs);
-      }, (err) => { if (first) reject(err); else console.error(col, err); });
+      }, (err) => {
+        if (first) reject(err);
+        else if (err?.code === 'permission-denied') this.onAccessLost?.(); // removed from the household while the app was open
+        else console.error(col, err);
+      });
       this.unsubs.push(unsub);
     })));
     return data;

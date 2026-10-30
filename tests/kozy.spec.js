@@ -457,7 +457,7 @@ test('settings: change a limit, add a goal', async ({ page }) => {
   await expect(page.locator('[data-test="goals"]')).toContainText('₹2,000');
 });
 
-test('roles: member adds but cannot change setup or my spends; viewer only views', async ({ page }) => {
+test('roles: editor adds and edits any spend but cannot change setup; viewer only views', async ({ page }) => {
   await fresh(page);
   await addSpend(page, 999, 'Home misc', 'UPI', 'Owner spend');
 
@@ -469,10 +469,12 @@ test('roles: member adds but cannot change setup or my spends; viewer only views
   await expect(page.locator('[data-test="recent"]')).toContainText('Wife added ₹120');
   await go(page, T, 'budget', 'member');
   await page.locator('[data-view="spends"]').click();
+  // an editor may fix ANY spend, the owner's too
   await page.locator('[data-entry]', { hasText: 'Owner spend' }).click();
-  await expect(page.locator('.sheet')).toContainText('Only the person who added this');
-  await expect(page.locator('.sheet [data-save]')).toHaveCount(0);
-  await page.keyboard.press('Escape');
+  await expect(page.locator('.sheet [data-save]')).toBeVisible();
+  await page.locator('.sheet [name="amount"]').fill('1001');
+  await page.locator('.sheet [data-save]').click();
+  await expect(page.locator('[data-entry]', { hasText: 'Owner spend' })).toContainText('₹1,001');
   await page.locator('[data-entry]', { hasText: 'Wife spend' }).click();
   await expect(page.locator('.sheet [data-save]')).toBeVisible();
   await page.keyboard.press('Escape');
@@ -485,7 +487,7 @@ test('roles: member adds but cannot change setup or my spends; viewer only views
     const s = await import('/js/store.js');
     try { await s.setMeta('cats', []); return 'allowed'; } catch (e) { return e.message; }
   });
-  expect(msg).toBe('Only the owner can change setup');
+  expect(msg).toBe('Only the admin can change setup');
   await go(page, T, 'stock', 'member');
   await row(page, 'item-dal').locator('[data-act="bought"]').click();
   await page.locator('.sheet input[name="qty"]').fill('2');

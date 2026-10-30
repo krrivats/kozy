@@ -12,7 +12,7 @@ import { USE_FIREBASE, EMULATOR, FORCE_LOCAL, GUEST, LOCAL_USER } from './config
 
 export const COLLECTIONS = ['entries', 'items', 'stock', 'milk', 'meta'];
 
-// Setup keys only the owner may change. Members may write the other meta keys (bill paid state, milk bill).
+// Setup keys only the admin (internal name 'owner') may change. Editors (internal 'member') may write the other meta keys (bill paid state, milk bill).
 export const OWNER_META = ['cats', 'bills', 'goals', 'ccStart', 'milkSettings', 'itemsSeeded', 'vegSeeded', 'recurring', 'demo', 'budgetTotal', 'family', 'checklistSeeded'];
 
 let adapter = null;
@@ -76,7 +76,7 @@ export function currentUserEmail() {
   return adapter?.userEmail?.() || '';
 }
 
-// 'owner' | 'member' | 'viewer' | null (unknown email). No adapter (Node script) = owner.
+// 'owner' (Admin) | 'member' (Editor) | 'viewer' | null (no household). No adapter (Node script) = owner.
 export function role() {
   return adapter ? adapter.role() : 'owner';
 }
@@ -84,23 +84,19 @@ export function role() {
 export function isOwner() { return role() === 'owner'; }
 export function canWrite() { return role() === 'owner' || role() === 'member'; }
 
-// Members may change/delete only spends they added. The owner may change anything.
+// Admins and editors may change or delete any entry; viewers none. (Who first added it stays recorded in byEmail.)
 export function canEdit(doc) {
-  if (isOwner()) return true;
-  if (!canWrite() || !doc) return false;
-  const me = currentUserEmail();
-  return me ? doc.byEmail === me : doc.by === currentUserLabel();
+  return canWrite() && !!doc;
 }
 
 export class ReadOnlyError extends Error {
   constructor(msg = 'View only — you can’t change this') { super(msg); this.name = 'ReadOnlyError'; }
 }
 
-function guard(col, doc, existing) {
+function guard(col, doc) {
   if (!canWrite()) throw new ReadOnlyError();
   if (isOwner()) return;
-  if (col === 'meta' && OWNER_META.includes(doc.id)) throw new ReadOnlyError('Only the owner can change setup');
-  if (col === 'entries' && existing && !canEdit(existing)) throw new ReadOnlyError('Only the person who added it (or the owner) can change this');
+  if (col === 'meta' && OWNER_META.includes(doc.id)) throw new ReadOnlyError('Only the admin can change setup');
 }
 
 // Writes in flight → the sync dot shows "saving" until they finish.
@@ -135,7 +131,7 @@ export function meta(key, fallback = null) {
 export async function put(col, doc) {
   const now = Date.now();
   const existing = doc.id ? cache[col].get(doc.id) : null;
-  guard(col, doc, existing);
+  guard(col, doc);
   const email = existing?.byEmail || currentUserEmail();
   const full = {
     ...existing,
@@ -154,7 +150,7 @@ export async function put(col, doc) {
 
 // Like put, but replaces the whole doc (use it to drop a field, or to undo a delete).
 export async function replace(col, doc) {
-  guard(col, doc, cache[col].get(doc.id));
+  guard(col, doc);
   const full = { ...doc, updatedAt: Date.now() };
   cache[col].set(full.id, full);
   emit(col);
@@ -164,7 +160,7 @@ export async function replace(col, doc) {
 
 export async function remove(col, id) {
   const existing = cache[col].get(id) || null;
-  guard(col, { id }, existing);
+  guard(col, { id });
   cache[col].delete(id);
   emit(col);
   await track(adapter.delete(col, id));
@@ -182,7 +178,7 @@ export function exportAll() {
 }
 
 export async function importAll(data) {
-  if (!isOwner()) throw new ReadOnlyError('Only the owner can restore a backup');
+  if (!isOwner()) throw new ReadOnlyError('Only the admin can restore a backup');
   if (!data || data.app !== 'kozy') throw new Error('Not a Kozy backup file');
   const clean = {};
   for (const c of COLLECTIONS) clean[c] = Array.isArray(data[c]) ? data[c] : [];
@@ -192,7 +188,7 @@ export async function importAll(data) {
 }
 
 export async function clearAll() {
-  if (!isOwner()) throw new ReadOnlyError('Only the owner can reset');
+  if (!isOwner()) throw new ReadOnlyError('Only the admin can reset');
   const empty = Object.fromEntries(COLLECTIONS.map((c) => [c, []]));
   fill(empty);
   emit('*');

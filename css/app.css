@@ -669,3 +669,13 @@ body.role-viewer .fab { visibility: hidden; }
 .mtype > .btn, [data-types] > .btn { grid-column: 1 / -1; }
 .btn.tick { flex-direction: column; gap: 0; white-space: normal; line-height: 1.15; min-height: 54px; }
 .btn.tick .muted-ink { font-size: 12px; }
+
+/* sign-in gate */
+.btn.link { background: none; border: 0; color: var(--muted); text-decoration: underline; min-height: 44px; font-weight: 600; }
+.login h2 { margin: 4px 0 0; font-size: 20px; }
+.login .field { text-align: left; }
+.login .switch { align-self: flex-start; }
+.team-list { display: flex; flex-direction: column; gap: 8px; }
+.member { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); }
+.member:first-child { border-top: 0; }
+.role-sel { width: auto; min-height: 44px; padding: 0 8px; }

@@ -1,4 +1,5 @@
 // Pure logic tests (run in Node, no browser): quick-add parser, bills, stock, sabzi prices, reminders.
+import './pin-today.js';
 import { test, expect } from '@playwright/test';
 import * as store from '../js/store.js';
 import { buildDemo } from '../js/logic/demo.js';

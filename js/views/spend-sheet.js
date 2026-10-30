@@ -49,7 +49,7 @@ export function openSpendSheet(entry = null, preset = {}) {
       ${editable ? `<div class="row gap">
         ${isEdit ? `<button type="button" class="btn ghost danger-text" data-del aria-label="Delete">${icon('trash')}</button>` : ''}
         <button type="submit" class="btn primary grow" data-save>${isEdit ? 'Save changes' : 'Add spend'}</button>
-      </div>` : '<p class="muted small">Only the person who added this (or the owner) can change it.</p>'}
+      </div>` : '<p class="muted small">View only — you can’t change this.</p>'}
     </form>`);
 
   const form = el.querySelector('form');
