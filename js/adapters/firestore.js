@@ -45,7 +45,9 @@ export class FirestoreAdapter {
     this.auth = authMod.getAuth(app);
     if (EMULATOR) authMod.connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
     await authMod.setPersistence(this.auth, authMod.browserLocalPersistence);
+    // experimentalAutoDetectLongPolling: some phones/networks block Firestore's streaming connection ("client is offline").
     this.db = fsMod.initializeFirestore(app, EMULATOR ? {} : {
+      experimentalAutoDetectLongPolling: true,
       localCache: fsMod.persistentLocalCache({ tabManager: fsMod.persistentMultipleTabManager() }),
     });
     if (EMULATOR) fsMod.connectFirestoreEmulator(this.db, '127.0.0.1', 8085);
@@ -137,6 +139,19 @@ export class FirestoreAdapter {
     this.hid = null;
   }
 
+  // The very first read on a phone can fail with "client is offline" while the connection is still opening: try a few times.
+  async #getDocRetry(ref) {
+    let last;
+    for (let i = 0; i < 4; i++) {
+      try { return await this.F.getDoc(ref); } catch (e) {
+        last = e;
+        if (!/offline|unavailable/i.test(`${e?.code} ${e?.message}`)) throw e;
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      }
+    }
+    throw last;
+  }
+
   // ---------- where does this person belong? ----------
   // → { state: 'signed-out' | 'unverified' | 'no-household' | 'ready' }
   async resolve() {
@@ -146,12 +161,12 @@ export class FirestoreAdapter {
     if (!this.user.emailVerified && !legacy) return { state: 'unverified' };
     const email = this.userEmail();
     const ref = this.#memRef(email);
-    let snap = await F.getDoc(ref);
+    let snap = await this.#getDocRetry(ref);
     if (!snap.exists() && legacy) {
       // The two old family accounts claim the old household (rules allow exactly this).
       const now = Date.now();
       await F.setDoc(ref, { hid: LEGACY_HID, role: LEGACY[email].role, name: LEGACY[email].name, addedBy: email, addedAt: now, joinedAt: now, uid: this.user.uid });
-      snap = await F.getDoc(ref);
+      snap = await this.#getDocRetry(ref);
     }
     if (!snap.exists()) { this.membership = null; this.hid = null; return { state: 'no-household' }; }
     const m = snap.data();
