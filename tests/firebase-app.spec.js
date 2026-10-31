@@ -324,3 +324,33 @@ test('Home Screen app (iPhone standalone): no Google button, explains why', asyn
   await expect(p.locator('[data-test="no-google"]')).toBeVisible({ timeout: 20000 });
   await expect(p.locator('[data-google]')).toHaveCount(0);
 });
+
+test('Google account sets a password, then signs in with email + password (Home Screen app way)', async ({ browser }) => {
+  test.setTimeout(90000);
+  const p = await newPage(browser);
+  await p.goto(URL_());
+  await expect(p.locator('[data-test="tab-in"]')).toBeVisible({ timeout: 20000 });
+  // the emulator's fake Google sign-in
+  await p.evaluate(async () => {
+    const { getAdapter } = await import('/js/store.js');
+    const a = getAdapter();
+    await a.A.signInWithCredential(a.auth, a.A.GoogleAuthProvider.credential(JSON.stringify({ sub: 'g-777', email: 'goog@test.com', email_verified: true })));
+  });
+  await p.reload();
+  await createHousehold(p, 'Google home', 5000);
+  await p.goto(URL_('settings'));
+  await p.locator('[data-sec="account"] summary').click();
+  await p.locator('[data-test="setpw"]').click();
+  await p.locator('[data-test="setpw-in"]').fill('newpass1');
+  await p.locator('[data-test="setpw-go"]').click();
+  await expect(p.locator('#toast')).toContainText('Password set');
+  await expect(p.locator('[data-test="setpw"]')).toHaveCount(0);
+  await p.locator('[data-act="signout"]').click();
+  await expect(p.locator('[data-test="tab-in"]')).toBeVisible({ timeout: 20000 });
+  await p.locator('.login [name="email"]').fill('goog@test.com');
+  await p.locator('.login [name="password"]').fill('newpass1');
+  await p.locator('.login [data-test="submit"]').click();
+  await expect(p.locator('body.ready')).toBeVisible({ timeout: 20000 });
+  await p.goto(URL_('home'));
+  await expect(p.locator('[data-test="left"]')).toHaveText('₹5,000', { timeout: 20000 });
+});

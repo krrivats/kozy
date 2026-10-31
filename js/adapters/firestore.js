@@ -75,6 +75,21 @@ export class FirestoreAdapter {
 
   isHomeScreenApp() { return isHomeScreenApp(); }
 
+  // A Google-only account can add an email + password to the SAME account (so it can sign in inside the Home Screen app).
+  hasPassword() { return (this.user?.providerData || []).some((p) => p.providerId === 'password'); }
+
+  async setPassword(password) {
+    try {
+      // Sets a password on the same account (it then also has the email + password sign-in).
+      await this.A.updatePassword(this.user, password);
+      await this.user.reload();
+    } catch (e) {
+      if (e?.code === 'auth/requires-recent-login') throw new Error('For safety, sign in with Google again, then set the password right away.');
+      if (e?.code === 'auth/weak-password') throw new Error('Password needs at least 6 letters.');
+      throw e;
+    }
+  }
+
   // ---------- who am I ----------
   // 'owner' (admin) | 'member' (editor) | 'viewer' | null (no household yet)
   role() { return ROLE_TO_INTERNAL[this.membership?.role] || null; }

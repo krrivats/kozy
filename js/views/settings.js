@@ -7,7 +7,7 @@ import { loadDemo } from '../logic/demo.js';
 import { ensureItems, items } from '../logic/stock.js';
 import { ensureBills } from '../logic/budget.js';
 import { money, moneyShort, esc, today, dayLabel } from '../logic/format.js';
-import { icon, toast, confirmSheet, download, bar, savedTheme, applyTheme } from '../ui.js';
+import { icon, toast, confirmSheet, download, bar, savedTheme, applyTheme, openSheet, closeSheet } from '../ui.js';
 import { header } from './common.js';
 import { openItemForm } from './stock.js';
 import { typesEditor, readTypes, wireTypesEditor } from './milk.js';
@@ -181,7 +181,9 @@ export function render() {
     <p class="small"><b>${esc(store.currentUserLabel())}</b> · ${roleName}</p>
     ${fire && adapter.isSignedIn?.() ? `<p class="small muted" data-test="acct-email">${esc(adapter.userEmail())}</p>
       <div class="row gap">
-        <button class="btn ghost grow" data-act="pwreset" data-test="pwreset">Change password</button>
+        ${adapter.hasPassword?.() === false
+          ? '<button class="btn ghost grow" data-act="setpw" data-test="setpw">Set a password</button>'
+          : '<button class="btn ghost grow" data-act="pwreset" data-test="pwreset">Change password</button>'}
         <button class="btn ghost grow" data-act="signout">Sign out</button>
       </div>
       <button class="btn link" data-act="delete-account" data-test="delete-account">Delete my account</button>` : `
@@ -278,6 +280,20 @@ export function bind(root, rerender) {
         toast('All data reset');
         location.hash = '#/home';
       }
+    } else if (act === 'setpw') {
+      const a = store.getAdapter();
+      const el = openSheet(`<h2 class="sheet-title">Set a password</h2>
+        <p class="muted small">So <b>${esc(a.userEmail())}</b> can also sign in with email + password, for example in the Home Screen app. Google still works in Safari.</p>
+        <form class="stack-s" data-pwform>
+          <input class="input" name="pw" type="password" autocomplete="new-password" placeholder="New password (6+ letters)" aria-label="New password" required data-test="setpw-in">
+          <p class="form-error" hidden></p>
+          <button class="btn primary" type="submit" data-test="setpw-go">Save password</button>
+        </form>`);
+      el.querySelector('[data-pwform]').onsubmit = async (e2) => {
+        e2.preventDefault();
+        const err = el.querySelector('.form-error');
+        try { await a.setPassword(e2.target.pw.value); closeSheet(true); toast('Password set ✓ Now use your email + password in the Home Screen app'); rerender(); } catch (x) { err.textContent = x.message; err.hidden = false; }
+      };
     } else if (act === 'pwreset') {
       try {
         await store.getAdapter().sendReset(store.currentUserEmail());
