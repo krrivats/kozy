@@ -134,3 +134,17 @@ Some replace v1 decisions above (marked ♻️).
 | 83 | Reminders job loops over **every household with phones** (`devices` group), one push per household. One failing household never stops the rest. | Each family gets its own reminder. |
 | 84 | Unit tests now pin the clock to 17 Oct 2026. | One test was failing only because the real date moved on. |
 | 85 | Known limit: Firestore's offline cache on a shared phone is not wiped on sign-out. Fine for family phones; revisit for shared devices. | Honest note. |
+
+---
+
+## v2.1 — easier to manage
+
+| # | Decision | Why |
+|---|---|---|
+| 86 | **Invite with a code.** Admin → Household → pick Editor or Viewer → **Make code** → share one WhatsApp message with a link (`?join=CODE`) and the code (like `K7M2-QX9P`, 7 days, several people can use it, admin can cancel it). The person creates an account with ANY email and joins. Admin codes do not exist. Adding by email stays as the second option. | Matching the exact email was the weak spot: people sign up with another one. |
+| 87 | Rules: `invites/{CODE}` (admin makes/lists/deletes; anyone verified can read one code if they know it). A membership may be created with a valid, unexpired code for exactly that household and role, only by someone with no household yet. 18 rules tests. | Safe by default: codes are random, expire, and can't make admins. |
+| 88 | **Delete household** (Admin; type its name to confirm; removes data, people, codes, phones) and **Delete my account** (needs a sign-in within 4 minutes; the only Admin deletes their household too; with other people still in it, remove them first). | Privacy basics before strangers use Kozy; also a clean way to start over. |
+| 89 | **Nightly backup** (GitHub Actions 02:00 IST): every household as JSON into a PRIVATE repo `krrivats/kozy-backups`, last 30 days. Needs secrets FIREBASE_SERVICE_ACCOUNT + BACKUP_REPO_TOKEN. Not public: user data must never go into the public Kozy repo. | Firebase is the live copy, not a backup: Reset, a delete or a bug changes it at once, and the free plan has no automatic backups. |
+| 90 | **Usage warning** in the same job: estimated daily reads (docs × people × 2 opens) against the free 50 000; at 70 % the run FAILS so GitHub emails you. | The free plan simply stops when full; this gives notice first. |
+| 91 | **Automatic tests** (`.github/workflows/ci.yml`) on every push: 36 app tests + rules + multi-user app + backup tests. | A change that breaks something is caught before it goes live. |
+| 92 | Settings sections remember open/closed at the tap itself. | A list reload between the tap and the "open" event could close the section again. |

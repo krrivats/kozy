@@ -21,7 +21,18 @@ const MESSAGES = {
 };
 const msgOf = (e) => MESSAGES[e?.code] || String(e?.message || e).replace('Firebase: ', '');
 
-let tab = 'in'; // 'in' | 'up' — remembered while the login screen re-renders
+// An invite link looks like https://…/kozy/?join=ABCD2345 — remember the code while the person signs up.
+const JOIN_KEY = 'kozy.join';
+(function keepLinkCode() {
+  try {
+    const c = new URLSearchParams(location.search).get('join');
+    if (c) sessionStorage.setItem(JOIN_KEY, c);
+  } catch { /* private mode */ }
+})();
+const pendingCode = () => { try { return sessionStorage.getItem(JOIN_KEY) || ''; } catch { return ''; } };
+const clearCode = () => { try { sessionStorage.removeItem(JOIN_KEY); } catch { /* ignore */ } };
+
+let tab = pendingCode() ? 'up' : 'in'; // 'in' | 'up' — remembered while the login screen re-renders
 
 export function runGate(adapter) {
   const root = document.getElementById('view');
@@ -44,7 +55,7 @@ export function runGate(adapter) {
 
 function shell(root, inner) {
   root.innerHTML = `<section class="login" data-test="gate">${logo(72)}<h1>Kozy</h1>${inner}</section>`;
-  const err = root.querySelector('.form-error');
+  const err = root.querySelector('[data-create-err]') || root.querySelector('.form-error');
   return {
     show(msg) { if (err) { err.textContent = msg; err.hidden = false; } },
     clear() { if (err) err.hidden = true; },
@@ -73,6 +84,7 @@ function screenLogin(root, adapter, next) {
   const up = tab === 'up';
   const s = shell(root, `
     <p class="muted">Home budget, kitchen stock & milk — for your family.</p>
+    ${pendingCode() ? '<p class="card small" data-test="invite-banner">🎟️ You were invited. Create an account (or sign in), and you will join the household.</p>' : ''}
     <div class="seg" role="tablist" style="width:100%">
       <button type="button" class="${up ? '' : 'on'}" data-tab="in" role="tab" data-test="tab-in">Sign in</button>
       <button type="button" class="${up ? 'on' : ''}" data-tab="up" role="tab" data-test="tab-up">Create account</button>
@@ -199,6 +211,14 @@ function screenOnboarding(root, adapter, next) {
   const email = adapter.userEmail();
   const first = adapter.userLabel();
   const s = shell(root, `
+    <h2>Join a household 🎟️</h2>
+    <p class="muted small">Got a code from the admin? Type it here.</p>
+    <form class="row gap-s" data-join style="width:100%">
+      <input class="input grow" name="code" value="${esc(pendingCode())}" placeholder="Code, e.g. K7M2-QX9P" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Invite code" data-test="join-code">
+      <button class="btn primary" type="submit" data-test="join-go">Join</button>
+    </form>
+    <p class="form-error" hidden data-join-err></p>
+    <div class="or"><span>or start your own</span></div>
     <h2>Create your household 🏡</h2>
     <p class="muted">You will be its <b>Admin</b> and can add family later.</p>
     <form class="stack" data-form>
@@ -209,13 +229,23 @@ function screenOnboarding(root, adapter, next) {
       <label class="switch"><input type="checkbox" name="demo" data-test="hdemo"> Start with sample data</label>
       <button class="btn primary huge" type="submit" data-test="create-household">Create household</button>
     </form>
-    <p class="form-error" hidden></p>
+    <p class="form-error" hidden data-create-err></p>
     <div class="or"><span>or</span></div>
-    <p class="small"><b>Invited?</b> Ask the admin to add <b data-test="my-email">${esc(email)}</b> in Settings → Household, then tap Check again.</p>
+    <p class="small"><b>Invited by email?</b> Ask the admin to add <b data-test="my-email">${esc(email)}</b> in Settings → Household, then tap Check again.</p>
     <button class="btn ghost" data-again data-test="check-again">Check again</button>
     <button class="btn link" data-signout>Sign out</button>`);
   signOutBtn(root, adapter);
   root.querySelector('[data-again]').onclick = () => next();
+
+  const jf = root.querySelector('[data-join]');
+  const jerr = root.querySelector('[data-join-err]');
+  jf.onsubmit = async (ev) => {
+    ev.preventDefault();
+    jerr.hidden = true;
+    const btn = jf.querySelector('button');
+    btn.disabled = true;
+    try { await adapter.joinWithCode(jf.code.value); clearCode(); next(); } catch (e) { jerr.textContent = msgOf(e); jerr.hidden = false; btn.disabled = false; }
+  };
 
   const f = root.querySelector('[data-form]');
   f.onsubmit = async (ev) => {

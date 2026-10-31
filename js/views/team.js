@@ -3,13 +3,21 @@
 import * as store from '../store.js';
 import { ROLE_LABEL } from '../config.js';
 import { esc } from '../logic/format.js';
-import { icon, toast, confirmSheet, shareText } from '../ui.js';
+import { icon, toast, confirmSheet, shareText, openSheet, closeSheet } from '../ui.js';
 
 const APP_LINK = 'https://krrivats.github.io/kozy/';
+let invites = []; // active join codes (admin only)
 let members = null; // admin only: [{email, name, role, joinedAt, ...}] — kept so a re-render doesn't lose the list
 
 const adapter = () => store.getAdapter();
 const admins = () => (members || []).filter((m) => m.role === 'admin');
+
+const showCode = (c) => `${c.slice(0, 4)}-${c.slice(4)}`;
+function codeText(c) {
+  return `Join “${adapter().householdName || 'our household'}” on Kozy 🏡
+Open ${APP_LINK}?join=${c.code} then create an account (or sign in).
+Or enter the code ${showCode(c.code)}. It works for 7 days.`;
+}
 
 function inviteText(m) {
   return `Join “${adapter().householdName || 'our household'}” on Kozy 🏡\nOpen ${APP_LINK} and sign in or create an account with ${m.email}.`;
@@ -43,8 +51,21 @@ export function teamBody() {
         <button class="icon-btn" data-team-act="remove" data-email="${esc(m.email)}" aria-label="Remove ${esc(m.name)}">${icon('trash')}</button>
       </div>`).join('')}
     </div>
+    <div class="stack-s" data-test="codes">
+      <p class="small"><b>Invite with a code</b> <span class="muted">— easiest: no need to know their email</span></p>
+      <div class="row gap-s">
+        <select class="input grow" data-test="code-role" aria-label="Role for the new person"><option value="editor">Editor (adds + edits)</option><option value="viewer">Viewer (only looks)</option></select>
+        <button class="btn primary" data-team-act="newcode" data-test="newcode">${icon('plus')} Make code</button>
+      </div>
+      ${invites.map((i) => `<div class="member" data-code="${i.code}">
+        <div class="grow"><b class="mono" data-test="code-text">${showCode(i.code)}</b>
+          <span class="muted small block">${ROLE_LABEL[i.role]} · until ${new Date(i.expiresAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span></div>
+        <button class="icon-btn" data-team-act="sharecode" data-code="${i.code}" aria-label="Share code">${icon('share')}</button>
+        <button class="icon-btn" data-team-act="revoke" data-code="${i.code}" aria-label="Cancel code">${icon('trash')}</button>
+      </div>`).join('')}
+    </div>
     <form class="stack-s" data-team-form="add">
-      <p class="small"><b>Add a person</b></p>
+      <p class="small"><b>Or add by email</b></p>
       <div class="row gap-s">
         <input class="input grow" name="pname" placeholder="Name" aria-label="Name" required data-test="p-name">
         <select class="input role-sel" name="prole" aria-label="Role" data-test="p-role">${opts('editor')}</select>
@@ -52,14 +73,16 @@ export function teamBody() {
       <input class="input" name="pemail" type="email" autocapitalize="off" placeholder="Their email" aria-label="Their email" required data-test="p-email">
       <p class="muted tiny">Admin: everything. Editor: adds and edits everything, no setup. Viewer: only looks. They sign in or create an account with THIS email and land inside your household.</p>
       <p class="form-error" hidden></p>
-      <button class="btn primary" type="submit" data-test="p-add">${icon('plus')} Add person</button>
+      <button class="btn ghost" type="submit" data-test="p-add">${icon('plus')} Add person</button>
     </form>
+    <button class="btn danger-outline" data-team-act="delete-household" data-test="delete-household">${icon('trash')} Delete this household</button>
   </div>`;
 }
 
 export async function loadTeam(rerender) {
   if (adapter()?.memberRole?.() !== 'admin') return;
   try {
+    invites = await adapter().listInvites().catch(() => []);
     members = (await adapter().listMembers()).sort((x, y) => (y.role === 'admin') - (x.role === 'admin') || x.name.localeCompare(y.name));
   } catch (e) { console.error(e); members = []; toast('Could not load the people list', 'err'); }
   rerender();
@@ -115,7 +138,24 @@ export function bindTeam(root, rerender) {
     const a = adapter();
     const act = t.dataset.teamAct;
     const m = (members || []).find((x) => x.email === t.dataset.email);
-    if (act === 'share' && m) {
+    if (act === 'newcode') {
+      const role = root.querySelector('[data-test="code-role"]').value;
+      try {
+        const code = await a.createInvite(role);
+        toast('Code ready ✓');
+        await reload();
+        const res = await shareText('Kozy invite', codeText({ code }));
+        if (res === 'copied') toast('Invite copied ✓ Paste in WhatsApp');
+      } catch (e) { toast(e.message, 'err'); }
+    } else if (act === 'sharecode') {
+      const res = await shareText('Kozy invite', codeText({ code: t.dataset.code }));
+      if (res === 'copied') toast('Invite copied ✓ Paste in WhatsApp');
+    } else if (act === 'revoke') {
+      try { await a.revokeInvite(t.dataset.code); toast('Code cancelled'); } catch (e) { toast(e.message, 'err'); }
+      reload();
+    } else if (act === 'delete-household') {
+      await deleteHouseholdFlow(a);
+    } else if (act === 'share' && m) {
       const res = await shareText('Kozy invite', inviteText(m));
       if (res === 'copied') toast('Invite copied ✓ Paste in WhatsApp');
     } else if (act === 'remove' && m) {
@@ -132,4 +172,25 @@ export function bindTeam(root, rerender) {
       }
     }
   });
+}
+
+// Type the household's name to confirm; then everything in it is removed for everyone.
+async function deleteHouseholdFlow(a) {
+  const name = a.householdName || '';
+  const ok = await new Promise((resolve) => {
+    const el = openSheet(`<h2 class="sheet-title">Delete “${esc(name)}”?</h2>
+      <p class="muted">All spends, stock, milk, settings and people are deleted <b>for everyone</b>. This cannot be undone. Tip: download a Backup first (Settings → Data).</p>
+      <input class="input" data-confirm placeholder="Type the household name to confirm" aria-label="Type the household name" autocomplete="off" data-test="delete-confirm">
+      <div class="row gap"><button class="btn ghost grow" data-no>Cancel</button><button class="btn danger grow" data-yes disabled data-test="delete-yes">Delete everything</button></div>`,
+    { onClose: () => resolve(false) });
+    const input = el.querySelector('[data-confirm]');
+    input.oninput = () => { el.querySelector('[data-yes]').disabled = input.value.trim().toLowerCase() !== name.trim().toLowerCase(); };
+    el.querySelector('[data-no]').onclick = () => { closeSheet(true); resolve(false); };
+    el.querySelector('[data-yes]').onclick = () => { closeSheet(true); resolve(true); };
+  });
+  if (!ok) return;
+  try {
+    await a.deleteHousehold();
+    location.reload();
+  } catch (e) { toast(e.message, 'err'); }
 }

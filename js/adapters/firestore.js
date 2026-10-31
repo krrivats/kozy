@@ -15,6 +15,10 @@ function clean(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// Join codes: 8 letters/digits without look-alikes (no 0/O, 1/I/L).
+const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+export const normalizeCode = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 // A random, unguessable household id.
 function newHid() {
   const b = crypto.getRandomValues(new Uint8Array(12));
@@ -251,6 +255,84 @@ export class FirestoreAdapter {
     await this.F.deleteDoc(this.#memRef(this.userEmail()));
     this.membership = null;
     this.hid = null;
+  }
+
+  // ---------- invite codes ----------
+  // The admin makes a code for an Editor or Viewer; whoever enters it (after signing up) lands inside this household.
+  async createInvite(role, days = 7) {
+    const b = crypto.getRandomValues(new Uint8Array(8));
+    const code = [...b].map((x) => CODE_CHARS[x % CODE_CHARS.length]).join('');
+    await this.F.setDoc(this.F.doc(this.db, 'invites', code), {
+      hid: this.hid, role, createdBy: this.userEmail(), createdAt: Date.now(), expiresAt: Date.now() + days * 86400000,
+    });
+    return code;
+  }
+
+  async listInvites() {
+    const F = this.F;
+    const snap = await F.getDocs(F.query(F.collection(this.db, 'invites'), F.where('hid', '==', this.hid)));
+    return snap.docs.map((d) => ({ ...d.data(), code: d.id })).filter((i) => i.expiresAt > Date.now()).sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async revokeInvite(code) {
+    await this.F.deleteDoc(this.F.doc(this.db, 'invites', code));
+  }
+
+  // Join a household with a code. Throws an Error with a plain message when the code does not work.
+  async joinWithCode(raw) {
+    const code = normalizeCode(raw);
+    if (code.length < 6) throw new Error('Type the code the admin sent you.');
+    const snap = await this.#getDocRetry(this.F.doc(this.db, 'invites', code));
+    if (!snap.exists()) throw new Error('That code is not valid. Check it with the admin.');
+    const inv = snap.data();
+    if (inv.expiresAt <= Date.now()) throw new Error('This code has expired. Ask the admin for a new one.');
+    const now = Date.now();
+    try {
+      await this.F.setDoc(this.#memRef(this.userEmail()), {
+        hid: inv.hid, role: inv.role, name: this.#displayName(), addedBy: 'code', addedAt: now, joinedAt: now, uid: this.user.uid, code,
+      });
+    } catch (e) {
+      if (e?.code === 'permission-denied') throw new Error('This code could not be used. You may already be in a household.');
+      throw e;
+    }
+  }
+
+  // ---------- delete ----------
+  // Removes the whole household: all data, people, codes, phones. Admin only (the rules check it too).
+  async deleteHousehold() {
+    const F = this.F;
+    const me = this.userEmail();
+    const refs = [];
+    for (const col of [...COLLECTIONS, 'devices']) {
+      (await F.getDocs(this.#colRef(col))).docs.forEach((d) => refs.push(d.ref));
+    }
+    (await F.getDocs(F.query(F.collection(this.db, 'invites'), F.where('hid', '==', this.hid)))).docs.forEach((d) => refs.push(d.ref));
+    (await F.getDocs(F.query(F.collection(this.db, 'memberships'), F.where('hid', '==', this.hid)))).docs
+      .filter((d) => d.id !== me).forEach((d) => refs.push(d.ref));
+    refs.push(F.doc(this.db, 'households', this.hid));
+    for (let i = 0; i < refs.length; i += 450) {
+      const batch = F.writeBatch(this.db);
+      refs.slice(i, i + 450).forEach((r) => batch.delete(r));
+      await batch.commit();
+    }
+    await F.deleteDoc(this.#memRef(me)); // last: the admin needs their own membership until everything else is gone
+    this.unsubs.forEach((u) => u());
+    this.unsubs = [];
+    this.membership = null;
+    this.hid = null;
+  }
+
+  // Firebase only lets you delete your account if you signed in a few minutes ago.
+  signedInRecently() {
+    const t = Date.parse(this.user?.metadata?.lastSignInTime || '');
+    return EMULATOR || (t && Date.now() - t < 4 * 60000);
+  }
+
+  async deleteAccount() {
+    if (this.membership?.role === 'admin') await this.deleteHousehold(); // the caller checked no one else is in it
+    else if (this.membership) { this.unsubs.forEach((u) => u()); this.unsubs = []; await this.leaveHousehold(); }
+    await this.A.deleteUser(this.user);
+    this.user = null;
   }
 
   // ---------- phone reminders ----------

@@ -679,3 +679,4 @@ body.role-viewer .fab { visibility: hidden; }
 .member { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid var(--line); }
 .member:first-child { border-top: 0; }
 .role-sel { width: auto; min-height: 44px; padding: 0 8px; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; font-size: 16px; }

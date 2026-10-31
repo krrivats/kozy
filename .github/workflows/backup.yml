@@ -1,0 +1,45 @@
+# Kozy nightly backup — free, on GitHub Actions. Every household's data is saved as JSON into a PRIVATE repo (krrivats/kozy-backups),
+# keeping the last 30 days. The same run checks Firebase's free daily limit and FAILS (GitHub emails you) when it is above 70 %.
+# Does nothing until the FIREBASE_SERVICE_ACCOUNT secret exists. Saving to the private repo needs BACKUP_REPO_TOKEN too (see MORNING_REPORT.md / DECISIONS #90).
+name: Kozy backup
+
+on:
+  schedule:
+    - cron: '30 20 * * *'   # 20:30 UTC = 02:00 IST
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      HAS_TOKEN: ${{ secrets.BACKUP_REPO_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --prefix tools/reminders --no-audit --no-fund
+      - name: Backup + usage check
+        id: run
+        continue-on-error: true
+        run: node tools/reminders/backup.mjs
+        env:
+          OUT_DIR: backup-out
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      - name: Save to the private backup repo
+        if: ${{ env.HAS_TOKEN == 'true' && hashFiles('backup-out/**') != '' }}
+        env:
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          git clone --depth 1 "https://x-access-token:${TOKEN}@github.com/krrivats/kozy-backups.git" repo
+          cp -r backup-out/* repo/
+          cd repo
+          find . -maxdepth 1 -type d -name '20??-??-??' | sort | head -n -30 | xargs -r rm -rf   # keep the last 30 days
+          git config user.name "kozy-backup"
+          git config user.email "backup@users.noreply.github.com"
+          git add -A
+          git commit -m "backup $(date -u +%F)" || echo "nothing new"
+          git push
+      - name: Fail when the free limit is close
+        if: steps.run.outcome == 'failure'
+        run: exit 1

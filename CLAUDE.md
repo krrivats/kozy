@@ -33,9 +33,10 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - `sw.js` (offline + push) · `manifest.webmanifest` · `icons/` — PWA.
 - `firestore.rules` — roles enforced server-side (ME_EMAIL / WIFE_EMAIL / VIEWER_EMAIL placeholders).
 - `tools/server.mjs` — local server (`npm start` → http://localhost:5173).
-- `tools/reminders/send.mjs` + `.github/workflows/reminders.yml` — free daily push reminders via GitHub Actions.
+- `tools/reminders/send.mjs` + `.github/workflows/reminders.yml` — free daily push reminders (every household) via GitHub Actions.
+- `tools/reminders/backup.mjs` + `.github/workflows/backup.yml` — nightly JSON backup to a PRIVATE repo + free-limit warning. `.github/workflows/ci.yml` — all tests on every push.
 - `tests/` — Playwright (`npm test`, 32 tests incl. unit, push and a real bill scan). Screenshots → `screenshots/`.
-- `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (14 rules tests), `npm run test:app` (real app: sign up → household → roles → removal → legacy account), `npm run demo` (emulators + app at http://localhost:5173/?emulator=1 to try by hand; inbox screen has an "[Emulator] auto-verify" button).
+- `tests-rules/` — Firebase emulator tests (needs Java 11+): `npm test` (14 rules tests), `npm run test:app` (real app: sign up → household → roles → removal → legacy account), `npm run test:backup` (nightly backup script), `npm run demo` (emulators + app at http://localhost:5173/?emulator=1 to try by hand; inbox screen has an "[Emulator] auto-verify" button).
 
 ## Progress
 - [x] LIVE 2026-10-18: https://krrivats.github.io/kozy/ (repo krrivats/kozy, GitHub Pages from main /root),
@@ -50,6 +51,9 @@ Plain HTML + CSS + vanilla JS (ES modules). No build step. Must run on GitHub Pa
 - [x] MULTI-USER built on branch `multi-user` (NOT published): anyone signs up, owns a household as Admin, adds Editors/Viewers
       (MULTI_USER_PLAN.md, DECISIONS #76+). All tests pass. TO PUBLISH: paste firestore.rules in Firebase console, turn ON sign-up
       (Authentication → Settings → User actions), set email template sender "Kozy", then merge `multi-user` into `main` and push.
+- [x] v2.0.1 LIVE (multi-user, krrish still works). v2.1.0 on branch `join-codes` (NOT published): invite codes + link, delete household/account,
+      backup + usage-warning script, CI. TO PUBLISH v2.1: re-paste firestore.rules (new `invites` part), merge `join-codes` → main, push.
+      Backup needs secrets FIREBASE_SERVICE_ACCOUNT + BACKUP_REPO_TOKEN and a private repo krrivats/kozy-backups (not done yet).
 - [ ] Later: medicines with expiry, home items (plumbing/electrical/utensils)
 - [ ] Maybe: weekly grocery view; better bill reading (paid AI vision) if free OCR isn't good enough
 - [x] v1.3 — redesign (glass, dock with centre +, ⚙️ in headers, ring gauge, quick actions), every row tappable to edit (DECISIONS #62–67)

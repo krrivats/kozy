@@ -4,6 +4,7 @@ rules_version = '2';
 //
 //   households/{hid}                  the household (name, createdBy) and, below it: entries, items, stock, milk, meta, devices
 //   memberships/{email}               { hid, role: admin | editor | viewer, name, ... }  ONE doc per email = one household
+//   invites/{CODE}                    a join code an admin made (editor or viewer only, expires)
 //
 // Roles inside a household:
 //   admin   everything, including setup keys (budget, limits, bills, goals, milk rates), people, rename, delete
@@ -57,7 +58,7 @@ service cloud.firestore {
       allow list: if verified() && hasMem() && memData().role == 'admin' && resource.data.hid == memData().hid;
 
       allow create: if verified()
-        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid'])
+        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid', 'code'])
         && request.resource.data.role in ['admin', 'editor', 'viewer']
         && (
           // (a) you start a brand-new household: it is created in the same batch and did not exist before
@@ -67,13 +68,20 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/households/$(request.resource.data.hid)).data.createdBy == me())
           // (b) the two family accounts claim the old household
           || (memEmail == me() && request.resource.data.hid == 'kozy-home' && legacyRole('kozy-home') == request.resource.data.role)
+          // (d) you join with an invite code: the code exists, is not expired, and names exactly this household and role
+          || (memEmail == me() && !hasMem() && request.resource.data.code is string
+            && request.resource.data.role in ['editor', 'viewer']
+            && exists(/databases/$(database)/documents/invites/$(request.resource.data.code))
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.hid == request.resource.data.hid
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.role == request.resource.data.role
+            && get(/databases/$(database)/documents/invites/$(request.resource.data.code)).data.expiresAt > request.time.toMillis())
           // (c) an admin adds someone to THEIR household (create only: an existing membership can never be overwritten)
           || isAdminOf(request.resource.data.hid)
         );
 
       allow update: if verified()
         && request.resource.data.hid == resource.data.hid
-        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid'])
+        && request.resource.data.keys().hasOnly(['hid', 'role', 'name', 'addedBy', 'addedAt', 'joinedAt', 'uid', 'code'])
         && request.resource.data.role in ['admin', 'editor', 'viewer']
         && (
           isAdminOf(resource.data.hid)                                                  // admin: change role / name
@@ -82,6 +90,19 @@ service cloud.firestore {
 
       // admin removes a person; anyone may leave (the app stops the last admin from leaving)
       allow delete: if verified() && (isAdminOf(resource.data.hid) || memEmail == me());
+    }
+
+    // ---------- invite codes ----------
+    // invites/{CODE}: { hid, role: editor | viewer, createdBy, createdAt, expiresAt }. The code is the secret (random, 8 letters/digits).
+    // Anyone verified may READ one code if they know it (to join); nobody can list them except the household's admin.
+    match /invites/{code} {
+      allow get: if verified();
+      allow list: if isAdminOf(resource.data.hid);
+      allow create: if isAdminOf(request.resource.data.hid)
+        && request.resource.data.keys().hasOnly(['hid', 'role', 'createdBy', 'createdAt', 'expiresAt'])
+        && request.resource.data.role in ['editor', 'viewer']
+        && request.resource.data.createdBy == me();
+      allow delete: if isAdminOf(resource.data.hid);
     }
 
     // ---------- households ----------

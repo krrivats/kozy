@@ -183,7 +183,8 @@ export function render() {
       <div class="row gap">
         <button class="btn ghost grow" data-act="pwreset" data-test="pwreset">Change password</button>
         <button class="btn ghost grow" data-act="signout">Sign out</button>
-      </div>` : `
+      </div>
+      <button class="btn link" data-act="delete-account" data-test="delete-account">Delete my account</button>` : `
       <p class="small">Local mode: data is saved only in this browser.</p>
       <div class="row gap">
         <a class="btn ghost grow" href="?role=member#/home" data-test="preview-member">👀 Wife's view</a>
@@ -204,6 +205,13 @@ export function bind(root, rerender) {
     const d = ev.target.closest?.('[data-sec]');
     if (d && ev.target === d) { if (d.open) openSections.add(d.dataset.sec); else openSections.delete(d.dataset.sec); }
   }, true);
+
+  // Remember open/closed at the tap itself (the "toggle" event comes a moment later; a re-render in between would close the section).
+  root.addEventListener('click', (ev) => {
+    const sum = ev.target.closest('summary');
+    const d = sum?.closest('details[data-sec]');
+    if (d) { if (!d.open) openSections.add(d.dataset.sec); else openSections.delete(d.dataset.sec); }
+  });
 
   root.addEventListener('click', async (ev) => {
     const t = ev.target.closest('[data-act]');
@@ -275,6 +283,17 @@ export function bind(root, rerender) {
         await store.getAdapter().sendReset(store.currentUserEmail());
         toast(`Reset link sent to ${store.currentUserEmail()} ✓`);
       } catch (e) { toast(e.message, 'err'); }
+    } else if (act === 'delete-account') {
+      const a = store.getAdapter();
+      if (!a.signedInRecently()) { toast('For safety: sign out, sign in again, then tap Delete my account.', 'err'); return; }
+      if (a.memberRole() === 'admin') {
+        const others = (await a.listMembers()).filter((m) => m.email !== a.userEmail());
+        if (others.length) { toast('Remove the other people first, or make one of them Admin and then leave.', 'err'); return; }
+      }
+      const alone = a.memberRole() === 'admin';
+      if (await confirmSheet({ title: 'Delete my account?', body: alone ? `You are the only person here, so <b>${esc(a.householdName)}</b> and all its data are deleted too. This cannot be undone.` : 'You leave the household and your login is deleted. The household keeps its data. This cannot be undone.', ok: 'Delete everything', danger: true })) {
+        try { await a.deleteAccount(); location.reload(); } catch (e) { toast(e.message, 'err'); }
+      }
     } else if (act === 'signout') {
       await store.getAdapter().signOut();
       location.reload();

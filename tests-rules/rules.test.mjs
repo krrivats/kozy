@@ -265,3 +265,67 @@ test('legacy family accounts keep working without any data move', async () => {
   const g = as('krrish@krrivats.app', { verified: false, provider: 'google.com' });
   await assertFails(getDoc(doc(g, 'households/kozy-home/entries/old1')));
 });
+
+// ---------------------------------------------------------------- invite codes
+const NOW = () => Date.now();
+async function seedInvite(code, { hid = 'h1', role = 'editor', expiresAt = NOW() + 86400000 } = {}) {
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `invites/${code}`), { hid, role, createdBy: 'a1@t.com', createdAt: 1, expiresAt }));
+}
+const joinDoc = (hid, role, code, extra = {}) => ({ hid, role, name: 'New', addedBy: 'code', addedAt: 1, code, ...extra });
+
+test('invite codes: only the admin of a household makes, lists and deletes them', async () => {
+  const a = as('a1@t.com');
+  await assertSucceeds(setDoc(doc(a, 'invites/ABCD2345'), { hid: 'h1', role: 'editor', createdBy: 'a1@t.com', createdAt: 1, expiresAt: NOW() + 1000000 }));
+  await assertSucceeds(getDocs(query(collection(a, 'invites'), where('hid', '==', 'h1'))));
+  await assertSucceeds(deleteDoc(doc(a, 'invites/ABCD2345')));
+  await assertFails(setDoc(doc(a, 'invites/ADMINCODE'), { hid: 'h1', role: 'admin', createdBy: 'a1@t.com', createdAt: 1, expiresAt: NOW() + 1000000 })); // no admin codes
+  await assertFails(setDoc(doc(a, 'invites/OTHERHH1'), { hid: 'h2', role: 'editor', createdBy: 'a1@t.com', createdAt: 1, expiresAt: NOW() + 1000000 })); // not for another household
+  const e = as('e1@t.com');
+  await assertFails(setDoc(doc(e, 'invites/EDITORCD'), { hid: 'h1', role: 'viewer', createdBy: 'e1@t.com', createdAt: 1, expiresAt: NOW() + 1000000 }));
+  await seedInvite('KEEP1234');
+  await assertFails(deleteDoc(doc(e, 'invites/KEEP1234')));
+  await assertFails(getDocs(query(collection(as('a2@t.com'), 'invites'), where('hid', '==', 'h1')))); // another admin can't list them
+  await assertFails(getDocs(collection(as('n1@t.com'), 'invites')));                                      // nobody lists all codes
+});
+
+test('invite codes: a new verified person joins with a valid code, with exactly that household and role', async () => {
+  await seedInvite('GOODCODE', { role: 'viewer' });
+  const n = as('n1@t.com');
+  await assertSucceeds(setDoc(doc(n, M('n1@t.com')), joinDoc('h1', 'viewer', 'GOODCODE')));
+  await assertSucceeds(getDoc(doc(n, 'households/h1/entries/own')));
+  await assertFails(setDoc(doc(n, 'households/h1/entries/x'), { amount: 1, byEmail: 'n1@t.com' })); // viewer
+});
+
+test('invite codes: wrong code, wrong role, wrong household, expired, unverified, or already in a household are refused', async () => {
+  await seedInvite('VIEWONLY', { role: 'viewer' });
+  await seedInvite('OLDCODE1', { expiresAt: NOW() - 1000 });
+  const n = as('n1@t.com');
+  await assertFails(setDoc(doc(n, M('n1@t.com')), joinDoc('h1', 'viewer', 'NOSUCHCD')));            // no such code
+  await assertFails(setDoc(doc(n, M('n1@t.com')), joinDoc('h1', 'editor', 'VIEWONLY')));            // asks for more than the code gives
+  await assertFails(setDoc(doc(n, M('n1@t.com')), joinDoc('h1', 'admin', 'VIEWONLY')));
+  await assertFails(setDoc(doc(n, M('n1@t.com')), joinDoc('h2', 'viewer', 'VIEWONLY')));            // code is for h1, not h2
+  await assertFails(setDoc(doc(n, M('n1@t.com')), joinDoc('h1', 'editor', 'OLDCODE1')));            // expired
+  const u = as('n2@t.com', { verified: false, provider: 'password' });
+  await assertFails(setDoc(doc(u, M('n2@t.com')), joinDoc('h1', 'viewer', 'VIEWONLY')));            // unverified
+  const a2 = as('a2@t.com'); // already admin of h2: can't hop into h1 with a code
+  await assertFails(setDoc(doc(a2, M('a2@t.com')), joinDoc('h1', 'viewer', 'VIEWONLY')));
+  const other = as('n3@t.com');
+  await assertFails(setDoc(doc(other, M('n4@t.com')), joinDoc('h1', 'viewer', 'VIEWONLY')));        // not for someone else's email
+});
+
+// ---------------------------------------------------------------- delete household
+test('admin can delete their whole household (data, people, codes) but not another one', async () => {
+  await seedInvite('TOGO1234');
+  const a = as('a1@t.com');
+  for (const p of ['entries/own', 'entries/byE', 'items/i1', 'stock/s1', 'milk/2026-10-17', 'meta/cats', 'meta/billState', 'devices/d1']) {
+    await assertSucceeds(deleteDoc(doc(a, `households/h1/${p}`)));
+  }
+  await assertSucceeds(deleteDoc(doc(a, 'invites/TOGO1234')));
+  await assertSucceeds(deleteDoc(doc(a, M('e1@t.com'))));
+  await assertSucceeds(deleteDoc(doc(a, M('v1@t.com'))));
+  await assertSucceeds(deleteDoc(doc(a, 'households/h1')));
+  await assertSucceeds(deleteDoc(doc(a, M('a1@t.com'))));
+  await assertFails(deleteDoc(doc(a, 'households/h2')));
+  const e = as('e1@t.com');
+  await assertFails(deleteDoc(doc(e, 'households/h2')));
+});

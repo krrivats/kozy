@@ -194,6 +194,7 @@ test('admin changes a role and removes a person; they lose access and land on on
   await expect(vik.locator('#fab')).toBeHidden();
 
   await openHousehold(admin);
+  await expect(admin.locator('[data-member="ed@test.com"] [data-test="chip"]')).toHaveText('Joined'); // signed in earlier: no longer Invited
   await admin.locator('[data-team-role="vik@test.com"]').selectOption('editor');
   await expect(admin.locator('#toast')).toContainText('Vik is now Editor');
   await vik.reload();
@@ -209,6 +210,80 @@ test('admin changes a role and removes a person; they lose access and land on on
   await vik.locator('[data-test="access-lost"] button', { hasText: 'OK' }).click();
   await expect(vik.locator('[data-test="create-household"]')).toBeVisible({ timeout: 20000 });
   expect(admin.errors).toEqual([]);
+});
+
+test('join with a code (typed, and by link), a wrong code is refused, then delete account and delete household', async ({ browser }) => {
+  test.setTimeout(180000);
+  const admin = await newPage(browser);
+  await signIn(admin, 'asha@test.com');
+  await openHousehold(admin);
+  await admin.locator('[data-test="code-role"]').selectOption('viewer');
+  await admin.locator('[data-test="newcode"]').click();
+  await expect(admin.locator('[data-test="code-text"]')).toBeVisible({ timeout: 10000 });
+  const code = (await admin.locator('[data-test="code-text"]').first().innerText()).replace(/[^A-Z0-9]/g, '');
+  expect(code).toHaveLength(8);
+  await shot(admin, 'settings-invite-code');
+
+  // typed code
+  const zed = await newPage(browser);
+  await signUp(zed, 'Zed', 'zed@test.com');
+  await expect(zed.locator('[data-test="join-code"]')).toBeVisible({ timeout: 20000 });
+  await shot(zed, 'auth-join-code');
+  await zed.locator('[data-test="join-code"]').fill('WRONG123');
+  await zed.locator('[data-test="join-go"]').click();
+  await expect(zed.locator('[data-join-err]')).toContainText('not valid');
+  await zed.locator('[data-test="join-code"]').fill(code.slice(0, 4) + '-' + code.slice(4).toLowerCase());
+  await zed.locator('[data-test="join-go"]').click();
+  await expect(zed.locator('body.ready')).toBeVisible({ timeout: 20000 });
+  await expect(zed.locator('.who-chip')).toHaveText('View only');
+  await expect(zed.locator('[data-test="left"]')).toBeVisible();
+  await expect(zed.locator('#fab')).toBeHidden();
+
+  // invite link: ?join=CODE survives sign-up and fills the box
+  const zoe = await newPage(browser);
+  await zoe.goto(`/?emulator=1&today=${T}&join=${code}#/home`);
+  await expect(zoe.locator('[data-test="invite-banner"]')).toBeVisible({ timeout: 20000 });
+  await zoe.locator('.login [name="name"]').fill('Zoe');
+  await zoe.locator('.login [name="email"]').fill('zoe@test.com');
+  await zoe.locator('.login [name="password"]').fill(PASS);
+  await zoe.locator('.login [data-test="submit"]').click();
+  await expect(zoe.locator('[data-test="inbox-email"]')).toHaveText('zoe@test.com', { timeout: 20000 });
+  await zoe.locator('[data-test="emu-verify"]').click();
+  await expect(zoe.locator('[data-test="join-code"]')).toHaveValue(code, { timeout: 20000 });
+  await zoe.locator('[data-test="join-go"]').click();
+  await expect(zoe.locator('body.ready')).toBeVisible({ timeout: 20000 });
+  await expect(zoe.locator('.who-chip')).toHaveText('View only');
+
+  // admin sees both as Joined viewers
+  await admin.reload();
+  await admin.locator('[data-sec="household"] summary').click();
+  await expect(admin.locator('[data-member="zed@test.com"] [data-test="chip"]')).toHaveText('Joined');
+  await expect(admin.locator('[data-member="zoe@test.com"]')).toContainText('Zoe');
+
+  // Zoe deletes her own account: she leaves, the login is gone, the household stays
+  await zoe.goto(URL_('settings'));
+  await zoe.locator('[data-sec="account"] summary').click();
+  await zoe.locator('[data-test="delete-account"]').click();
+  await zoe.locator('.sheet [data-yes]').click();
+  await expect(zoe.locator('[data-test="tab-in"]')).toBeVisible({ timeout: 20000 });
+  await zoe.locator('.login [name="email"]').fill('zoe@test.com');
+  await zoe.locator('.login [name="password"]').fill(PASS);
+  await zoe.locator('.login [data-test="submit"]').click();
+  await expect(zoe.locator('.login .form-error')).toBeVisible({ timeout: 10000 });
+  await admin.reload();
+  await admin.locator('[data-sec="household"] summary').click();
+  await expect(admin.locator('[data-member="zoe@test.com"]')).toHaveCount(0);
+
+  // Gita deletes her whole household by typing its name
+  const gita = await newPage(browser);
+  await signIn(gita, 'gita@test.com');
+  await openHousehold(gita);
+  await gita.locator('[data-test="delete-household"]').click();
+  await expect(gita.locator('[data-test="delete-yes"]')).toBeDisabled();
+  await gita.locator('[data-test="delete-confirm"]').fill('gupta HOME');
+  await gita.locator('[data-test="delete-yes"]').click();
+  await expect(gita.locator('[data-test="create-household"]')).toBeVisible({ timeout: 30000 });
+  for (const p of [admin, zed, zoe, gita]) expect(p.errors).toEqual([]);
 });
 
 test('old family account krrish@krrivats.app signs in with just "krrish" and opens the old household as admin', async ({ browser }) => {
