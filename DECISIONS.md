@@ -148,3 +148,5 @@ Some replace v1 decisions above (marked ♻️).
 | 90 | **Usage warning** in the same job: estimated daily reads (docs × people × 2 opens) against the free 50 000; at 70 % the run FAILS so GitHub emails you. | The free plan simply stops when full; this gives notice first. |
 | 91 | **Automatic tests** (`.github/workflows/ci.yml`) on every push: 36 app tests + rules + multi-user app + backup tests. | A change that breaks something is caught before it goes live. |
 | 92 | Settings sections remember open/closed at the tap itself. | A list reload between the tap and the "open" event could close the section again. |
+| 93 | **Bill photo scan removed** (the 📷 button, the Scan bill quick action, the scanner code and its tests). Home quick actions are now Add · Milk · Shop. | You don't need it for now; one less thing to maintain and no CDN download. |
+| 94 | **Home has ◀ month ▶** like Budget. Past/future months show what was saved or went over (no "days left"); leaving Home and coming back returns to this month. | Look back at last month without opening Budget. |

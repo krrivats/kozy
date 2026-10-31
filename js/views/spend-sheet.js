@@ -24,7 +24,6 @@ export function openSpendSheet(entry = null, preset = {}) {
       ${!isEdit ? `<label class="smart">
         ${icon('bolt')}
         <input name="smart" class="smart-in" placeholder="sabzi 250 · atta 10kg 420 · auto 80 cash" autocomplete="off" autocapitalize="off" aria-label="Smart quick add">
-        <button type="button" class="scan-btn" data-scan aria-label="Scan a bill photo">📷</button>
       </label>
       <p class="smart-preview" data-preview hidden></p>` : ''}
       <label class="amount-field">
@@ -73,12 +72,6 @@ export function openSpendSheet(entry = null, preset = {}) {
   };
   form.querySelectorAll('[data-cat]').forEach((b) => b.addEventListener('click', () => pickCat(b.dataset.cat)));
   form.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => pickMode(b.dataset.mode)));
-
-  form.querySelector('[data-scan]')?.addEventListener('click', async (e) => {
-    e.preventDefault();
-    const { openScanSheet } = await import('./scan-sheet.js');
-    openScanSheet();
-  });
 
   form.smart?.addEventListener('input', () => {
     const r = parse(form.smart.value);

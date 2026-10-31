@@ -83,6 +83,30 @@ test('add, edit, delete + undo a spend from the + button', async ({ page }) => {
   await expect(page.locator('.sheet .form-error')).toHaveText('Enter an amount');
 });
 
+test('home: previous / next month, then back to this month; no scan option anywhere', async ({ page }) => {
+  await fresh(page);
+  await addSpend(page, 250, 'Home misc', 'Cash', 'Bulb');
+  await expect(page.locator('[data-test="left"]')).toHaveText('₹39,750');
+  await expect(page.locator('[data-test="home-month"]')).toContainText('October 2026');
+  await page.locator('[data-test="home-month"] [data-act="hmonth-prev"]').click();
+  await expect(page.locator('[data-test="home-month"]')).toContainText('September 2026');
+  await expect(page.locator('.hero .label')).toHaveText('Saved in September 2026');
+  await expect(page.locator('[data-test="left"]')).toHaveText('₹40,000'); // nothing spent in September
+  await expect(page.locator('[data-test="days-left"]')).toHaveCount(0);
+  await page.locator('[data-test="home-month"] [data-act="hmonth-next"]').click();
+  await expect(page.locator('.hero .label')).toHaveText('Left this month');
+  await expect(page.locator('[data-test="left"]')).toHaveText('₹39,750');
+  // leaving Home and coming back starts on this month again
+  await page.locator('[data-test="home-month"] [data-act="hmonth-prev"]').click();
+  await page.locator('.dock a[href="#/budget"], .tabbar a[data-tab="budget"]').first().click();
+  await page.locator('.tabbar a[data-tab="home"]').click();
+  await expect(page.locator('[data-test="home-month"]')).toContainText('October 2026');
+  // the bill scanner is gone
+  await expect(page.getByText('Scan bill')).toHaveCount(0);
+  await page.locator('#fab').click();
+  await expect(page.locator('[data-scan]')).toHaveCount(0);
+});
+
 test('smart quick add: spend, kitchen item, sabzi with ₹/kg', async ({ page }) => {
   await fresh(page);
   await smartAdd(page, 'auto 80 cash');

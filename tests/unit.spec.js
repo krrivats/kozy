@@ -99,7 +99,6 @@ test('summary, who spent, goals, activity, reminders', () => {
 });
 
 // ---------- v1.2 ----------
-import { parseBill } from '../js/logic/scan.js';
 
 test('budget total, allocation, salary-day checklist', async () => {
   expect(budget.budgetTotal()).toBe(40000); // no budgetTotal set → sum of limits
@@ -153,33 +152,6 @@ test('monthly use + plan, edit a purchase (price lives in the spend)', async () 
   expect(store.get('stock', ev.id).entryId).toBeNull();
   await stock.updatePurchase(store.get('stock', ev.id), { price: 240 });
   expect(stock.priceOf(store.get('stock', ev.id))).toBe(240);
-});
-
-test('bill scan parser', () => {
-  const text = `SHRI BALAJI KIRANA STORE
-Rohtak  Ph: 9812345678
-Date: 17/10/2026  Bill No: 1123
-Item          Qty    Rate   Amount
-Aashirvaad Atta 10kg  1  420  420.00
-Fortune Mustard Oil 1L 2 165  330.00
-Tata Salt 1kg   1   28   28.00
-Surf Excel 1kg  1  135  135
-Onion 2kg  1  80  80
-Parle G biscuit 4 10 40
-Sub Total               1033.00
-CGST 0.00
-Grand Total   1,033.00
-Thank you visit again`;
-  const r = parseBill(text);
-  expect(r.total).toBe(1033);
-  const byItem = Object.fromEntries(r.rows.filter((x) => x.item).map((x) => [x.item.id, x]));
-  expect(byItem['item-atta']).toMatchObject({ qty: 10, unit: 'kg', price: 420 });
-  expect(byItem['item-oil']).toMatchObject({ price: 330 });
-  expect(byItem['item-salt']).toMatchObject({ price: 28 });
-  expect(byItem['veg-onion']).toMatchObject({ qty: 2, price: 80 });
-  expect(r.rows.find((x) => /parle/i.test(x.name))).toMatchObject({ item: null, price: 40 });
-  expect(r.rows.length).toBe(6);
-  expect(r.sum).toBe(1033);
 });
 
 test('login with just a name adds the family domain', async () => {

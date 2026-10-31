@@ -5,12 +5,15 @@ import { reminders } from '../logic/reminders.js';
 import { activity } from '../logic/activity.js';
 import { money, monthName, monthKey, today, esc, number, dayLabel } from '../logic/format.js';
 import { icon, logo, bar, toast, bump, openSheet, closeSheet } from '../ui.js';
-import { activityRow, syncDot, roleBadge, gearLink } from './common.js';
+import { activityRow, syncDot, roleBadge, gearLink, monthSwitch } from './common.js';
 import { openSpendSheet } from './spend-sheet.js';
 import { shoppingList } from '../logic/stock.js';
 import { shiftMonth, moneyShort } from '../logic/format.js';
 import { openEntry } from './edit-entry.js';
 import * as store from '../store.js';
+
+// Which month the top card shows. Resets to this month whenever you come back to Home.
+let viewMk = monthKey();
 
 function chips() {
   const t = today();
@@ -44,7 +47,6 @@ function quickActions() {
     : `<a class="qa-btn done" href="#/milk" data-test="chip-milk"><span class="qa-ic">${icon('check')}</span><span class="qa-t">${md.skip ? 'Milk skipped' : `Milk ✓ ${number(md.litres)} L`}</span></a>`;
   return `<section class="qa" data-test="quick">
     <button class="qa-btn primary" data-act="qa-add" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('plus')}</span><span class="qa-t">Add</span></button>
-    <button class="qa-btn" data-act="qa-scan" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('camera')}</span><span class="qa-t">Scan bill</span></button>
     ${milkBtn}
     <a class="qa-btn ${shopN ? 'warn' : ''}" href="#/stock"><span class="qa-ic">${icon('cart')}</span><span class="qa-t">Shop${shopN ? ` · ${shopN}` : ''}</span></a>
   </section>`;
@@ -83,7 +85,8 @@ function gauge(spent, limit, lvl) {
 }
 
 export function render() {
-  const mk = monthKey();
+  const mk = viewMk;
+  const isNow = mk === monthKey();
   const s = budget.summary(mk);
   const overallLvl = budget.level(s.spent, s.limit);
   const feed = activity(4);
@@ -94,27 +97,29 @@ export function render() {
     <div class="top-right">${roleBadge()}${gearLink()}</div>
   </header>
 
+  <div data-test="home-month">${monthSwitch(mk, 'hmonth')}</div>
+
   <section class="card hero ${s.left < 0 ? 'neg' : ''}" data-test="hero">
     ${gauge(s.spent, s.limit, overallLvl)}
     <div class="hero-main">
-      <p class="label">Left this month</p>
-      <p class="big" data-test="left">${money(s.left)}</p>
+      <p class="label">${isNow ? 'Left this month' : s.left >= 0 ? `Saved in ${monthName(mk)}` : `Over in ${monthName(mk)}`}</p>
+      <p class="big" data-test="left">${money(isNow ? s.left : Math.abs(s.left))}</p>
       <p class="hero-sub">spent ${money(s.spent)} of ${money(s.limit)}</p>
-      <div class="hero-stats">
+      ${isNow ? `<div class="hero-stats">
         <span><b data-test="days-left">${s.daysLeft}</b> days left</span>
         <span><b data-test="safe-daily">${money(s.safeDaily)}</b> /day safe</span>
-      </div>
+      </div>` : ''}
     </div>
   </section>
 
-  ${newMonthCard()}
+  ${isNow ? newMonthCard() : ''}
 
   ${quickActions()}
 
   ${chips() ? `<section class="needs" data-test="needs" aria-label="Needs you">${chips()}</section>` : ''}
 
   <section class="card tight">
-    <div class="card-head"><h2>Top spends</h2><a class="link" href="#/budget">All ${icon('chevron')}</a></div>
+    <div class="card-head"><h2>Top spends${isNow ? '' : ` · ${monthName(mk)}`}</h2><a class="link" href="#/budget">All ${icon('chevron')}</a></div>
     ${s.top.length ? s.top.map((c) => {
       const lvl = budget.level(c.amount, c.limit);
       return `<a class="cat-mini go-row" href="#/budget">
@@ -174,17 +179,19 @@ export function activitySheet() {
   el.querySelectorAll('[data-open]').forEach((b) => b.addEventListener('click', () => openEntry(b.dataset.open, b.dataset.ref)));
 }
 
-export function bind(root) {
+export function bind(root, rerender) {
+  viewMk = monthKey();
   root.addEventListener('click', async (ev) => {
     const o = ev.target.closest('[data-open]');
     if (o) { openEntry(o.dataset.open, o.dataset.ref); return; }
     const t = ev.target.closest('[data-act]');
     if (!t) return;
     const act = t.dataset.act;
-    if (act === 'bills') billsSheet();
+    if (act === 'hmonth-prev') { viewMk = shiftMonth(viewMk, -1); rerender(); }
+    else if (act === 'hmonth-next') { viewMk = shiftMonth(viewMk, 1); rerender(); }
+    else if (act === 'bills') billsSheet();
     else if (act === 'checklist') billsSheet('checklist');
     else if (act === 'qa-add') openSpendSheet();
-    else if (act === 'qa-scan') { const m = await import('./scan-sheet.js'); m.openScanSheet(); }
     else if (act === 'activity') activitySheet();
     else if (act === 'milk-tick') {
       bump(t);
