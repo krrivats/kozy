@@ -104,6 +104,10 @@ test('admin: sign up → verify → create household → add editor + viewer', a
   await admin.locator('.sheet [data-save]').click();
   await expect(admin.locator('[data-test="left"]')).toHaveText('₹28,800');
 
+  // still signed in after closing and reopening the page (the saved login survives)
+  await admin.reload();
+  await expect(admin.locator('body.ready')).toBeVisible({ timeout: 20000 });
+  await expect(admin.locator('[data-test="left"]')).toHaveText('₹28,800');
   await openHousehold(admin);
   await expect(admin.locator('[data-test="hh-name-in"]')).toHaveValue('Sharma home');
   await expect(admin.locator('[data-member]')).toHaveCount(1);
@@ -311,4 +315,12 @@ test('guest from the login screen: sample copy, never a household\'s data', asyn
   await expect(g.locator('[data-test="recent"]')).not.toContainText('Plumber');
   await g.goto(URL_('settings'));
   await expect(g.locator('[data-sec="household"]')).toHaveCount(0); // no Household in guest mode
+});
+
+test('Home Screen app (iPhone standalone): no Google button, explains why', async ({ browser }) => {
+  const p = await newPage(browser);
+  await p.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
+  await p.goto(URL_());
+  await expect(p.locator('[data-test="no-google"]')).toBeVisible({ timeout: 20000 });
+  await expect(p.locator('[data-google]')).toHaveCount(0);
 });

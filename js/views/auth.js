@@ -100,7 +100,7 @@ function screenLogin(root, adapter, next) {
     <p class="muted small" data-note hidden></p>
     ${up ? '' : '<button type="button" class="btn link" data-forgot>Forgot password?</button>'}
     <div class="or"><span>or</span></div>
-    <button class="btn ghost" data-google>Continue with Google</button>
+    ${adapter.isHomeScreenApp() ? '<p class="muted tiny" data-test="no-google">Google sign-in does not work inside the Home Screen app (the phone keeps it separate from Safari). Use your email and password here.</p>' : '<button class="btn ghost" data-google>Continue with Google</button>'}
     <button class="btn ghost" data-guest data-test="guest">👤 Try as guest</button>
     <p class="muted tiny">A guest gets a sample copy that stays on this phone. Create an account to start your own household, or to join one you were invited to.</p>`);
 
@@ -136,10 +136,13 @@ function screenLogin(root, adapter, next) {
     try { localStorage.setItem(GUEST_KEY, '1'); } catch { /* private mode: guest can't start */ }
     location.reload();
   };
-  root.querySelector('[data-google]').onclick = async () => {
-    s.clear();
-    try { if (await adapter.signInGoogle()) next(); } catch (e) { s.show(msgOf(e)); }
-  };
+  const g = root.querySelector('[data-google]');
+  if (g) {
+    g.onclick = async () => {
+      s.clear();
+      try { if (await adapter.signInGoogle()) next(); } catch (e) { s.show(msgOf(e)); }
+    };
+  }
 }
 
 // ---------- check your inbox ----------

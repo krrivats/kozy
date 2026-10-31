@@ -15,6 +15,11 @@ function clean(obj) {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// Opened from the iPhone/Android Home Screen icon (not in a browser tab).
+export function isHomeScreenApp() {
+  try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; }
+}
+
 // Join codes: 8 letters/digits without look-alikes (no 0/O, 1/I/L).
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 export const normalizeCode = (raw) => String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -46,9 +51,13 @@ export class FirestoreAdapter {
     this.F = fsMod;
     const app = appMod.initializeApp(EMULATOR ? { apiKey: 'demo-key', projectId: 'demo-kozy', authDomain: 'localhost' } : firebaseConfig);
     this.app = app;
-    this.auth = authMod.getAuth(app);
+    // Stay signed in: IndexedDB first (the most reliable on iPhone Safari and Home Screen apps), then localStorage.
+    this.auth = authMod.initializeAuth(app, {
+      persistence: [authMod.indexedDBLocalPersistence, authMod.browserLocalPersistence, authMod.browserSessionPersistence],
+      popupRedirectResolver: authMod.browserPopupRedirectResolver,
+    });
     if (EMULATOR) authMod.connectAuthEmulator(this.auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-    await authMod.setPersistence(this.auth, authMod.browserLocalPersistence);
+    try { navigator.storage?.persist?.(); } catch { /* not supported */ } // ask the phone not to clear Kozy's saved login
     // experimentalAutoDetectLongPolling: some phones/networks block Firestore's streaming connection ("client is offline").
     this.db = fsMod.initializeFirestore(app, EMULATOR ? {} : {
       experimentalAutoDetectLongPolling: true,
@@ -63,6 +72,8 @@ export class FirestoreAdapter {
   }
 
   isSignedIn() { return !!this.user; }
+
+  isHomeScreenApp() { return isHomeScreenApp(); }
 
   // ---------- who am I ----------
   // 'owner' (admin) | 'member' (editor) | 'viewer' | null (no household yet)
@@ -92,8 +103,7 @@ export class FirestoreAdapter {
   async signInGoogle() {
     const provider = new this.A.GoogleAuthProvider();
     // Popups are unreliable in an iPhone home-screen app, so use redirect there.
-    const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
-    if (standalone) {
+    if (isHomeScreenApp()) {
       await this.A.signInWithRedirect(this.auth, provider);
       return null;
     }
