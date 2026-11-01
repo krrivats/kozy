@@ -89,7 +89,10 @@
 }
 
 * { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; background: var(--bg); }
+html { -webkit-text-size-adjust: 100%; background: var(--bg); touch-action: manipulation; }
+/* iPhone zooms in when a field is under 16px: keep every field at least 16px */
+input, select, textarea { font-size: 16px; }
+.stepper input, .mday-row .stepper input { font-size: 19px; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 14.5px/1.38 var(--font); -webkit-font-smoothing: antialiased;
