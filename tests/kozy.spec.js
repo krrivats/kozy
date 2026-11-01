@@ -386,8 +386,15 @@ test('milk: buffalo + cow with own rates, one-tap tick, Change, per-type totals,
   await page.locator('[data-test="pay-sheet"] input[name="amount"]').fill('300');
   await page.locator('[data-test="pay-sheet"] [data-save]').click();
   await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹145');
+  await expect(page.locator('[data-test="milk-months"]')).toContainText('₹145 left');
+  // bought separately: not a payment — the milkman's balance stays
+  await page.locator('[data-test="extra-milk"]').click();
+  await page.locator('[data-test="extra-sheet"] input[name="amount"]').fill('66');
+  await page.locator('[data-test="extra-sheet"] [data-save]').click();
+  await expect(page.locator('[data-test="milk-due"]')).toHaveText('₹145');
+  await expect(page.locator('[data-test="milk-extras"]')).toContainText('₹66');
   await go(page, T, 'budget');
-  await expect(tile(page, 'Milk')).toContainText('₹300');
+  await expect(tile(page, 'Milk')).toContainText('₹366');
   await go(page, T, 'home');
   await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 4 L');
 

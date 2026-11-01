@@ -9,6 +9,7 @@ export const DEFAULT_TYPES = [
   { id: 'buffalo', name: 'Buffalo', emoji: '🐃', litres: 2, rate: 70 },
   { id: 'cow', name: 'Cow', emoji: '🐄', litres: 1.5, rate: 55 },
 ];
+export const EXTRA = 'milk-extra';
 export const DEFAULT_MILK = { types: DEFAULT_TYPES, asked: false };
 
 // Settings with the types list. Old single-milk settings {litres, rate} become one "Milk" type.
@@ -126,27 +127,55 @@ export function month(mk = monthKey()) {
 
 // Milkman account, carried across months:
 //   owed = every delivered day up to today (each type: litres × that day's rate)
-//   paid = every spend in the Milk category (payments, older monthly bills, anything you gave him)
+//   paid = Milk-category spends that are payments (not "bought separately", source 'milk-extra')
 //   balance = owed − paid; "earlier" = what was still unpaid before this month (negative = paid ahead)
+//   months = one line per month: bill, paid, left. A payment "for October" (ref '2026-10') goes to October;
+//   older payments with no month fill the oldest unpaid month first.
 export function ledger(t = today()) {
   const mk = monthKey(t);
   const days = store.list('milk').filter((d) => !d.skip && d.id <= t);
   const owed = days.reduce((s, d) => s + dayCost(d), 0);
   const thisDays = days.filter((d) => d.id.startsWith(mk));
   const thisMonth = thisDays.reduce((s, d) => s + dayCost(d), 0);
-  const payments = store.list('entries').filter((e) => e.cat === MILK_CAT && e.date <= t)
+  const spends = store.list('entries').filter((e) => e.cat === MILK_CAT && e.date <= t)
     .sort((a, b) => b.date.localeCompare(a.date) || (b.createdAt - a.createdAt));
+  const payments = spends.filter((e) => e.source !== EXTRA);
+  const extras = spends.filter((e) => e.source === EXTRA);
   const paid = payments.reduce((s, e) => s + Number(e.amount || 0), 0);
+
+  const rows = {};
+  const row = (k) => rows[k] || (rows[k] = { mk: k, bill: 0, paid: 0 });
+  for (const d of days) row(d.id.slice(0, 7)).bill += dayCost(d);
+  let pool = 0;
+  for (const e of payments) {
+    if (e.source === 'milk-pay' && /^\d{4}-\d{2}$/.test(e.ref || '')) row(e.ref).paid += Number(e.amount || 0);
+    else pool += Number(e.amount || 0);
+  }
+  const months = Object.values(rows).sort((a, b) => a.mk.localeCompare(b.mk));
+  for (const m of months) { // payments with no month (older ones) fill the oldest unpaid month first
+    const take = Math.min(pool, Math.max(0, m.bill - m.paid));
+    m.paid += take;
+    pool -= take;
+  }
+  if (pool > 0 && months.length) months[months.length - 1].paid += pool;
+  for (const m of months) { m.bill = Math.round(m.bill); m.paid = Math.round(m.paid); m.left = m.bill - m.paid; }
   return {
     owed: Math.round(owed), paid: Math.round(paid), balance: Math.round(owed - paid),
     thisMonth: Math.round(thisMonth), thisMonthLitres: thisDays.reduce((s, d) => s + dayLitres(d), 0),
-    earlier: Math.round(owed - thisMonth - paid), payments,
+    earlier: Math.round(owed - thisMonth - paid), payments, extras, months,
+    payMonth: (months.find((m) => m.left > 0) || { mk }).mk, // oldest month with something left to pay
   };
 }
 
-// Record money given to the milkman (full or part). It is a spend in the Milk category.
-export async function pay(amount, date = today(), mode = 'Cash') {
-  return addEntry({ date, amount, cat: MILK_CAT, mode, note: 'Paid milkman', source: 'milk-pay' });
+// Record money given to the milkman (full or part) "for" a month. It is a spend in the Milk category,
+// counted in the budget on the day it is paid.
+export async function pay(amount, date = today(), mode = 'Cash', forMonth = null) {
+  return addEntry({ date, amount, cat: MILK_CAT, mode, note: forMonth ? `Paid milkman · ${forMonth} bill` : 'Paid milkman', source: 'milk-pay', ref: forMonth || undefined });
+}
+
+// Milk bought separately (shop packet etc.): counts in the budget but does NOT change what the milkman is owed.
+export async function buyExtra(amount, date = today(), mode = 'Cash', note = '') {
+  return addEntry({ date, amount, cat: MILK_CAT, mode, note: note || 'Milk bought separately', source: EXTRA });
 }
 
 // Older monthly "bill" entries (kept for old data; payments replaced this).

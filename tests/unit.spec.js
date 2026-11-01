@@ -161,3 +161,26 @@ test('login with just a name adds the family domain', async () => {
   expect(loginEmail('me@test.com')).toBe('me@test.com');
   expect(loginEmail('')).toBe('');
 });
+
+test('milk: pay for a month, bought-separately does not reduce the bill, old payments fill oldest month', async () => {
+  const milk = await import('../js/logic/milk.js');
+  store.hydrate({ entries: [], milk: [], meta: [] });
+  // Oct and Nov, 1 buffalo-ish day each: Oct 3 days × ₹100, Nov 2 days × ₹100
+  for (const d of ['2026-10-01', '2026-10-02', '2026-10-03', '2026-11-01', '2026-11-02']) {
+    await store.replace('milk', { id: d, items: { x: { litres: 1, rate: 100 } }, litres: 1, skip: false });
+  }
+  let L = milk.ledger('2026-11-02');
+  expect(L.months.map((m) => [m.mk, m.bill, m.left])).toEqual([['2026-10', 300, 300], ['2026-11', 200, 200]]);
+  expect(L.payMonth).toBe('2026-10');
+  await milk.pay(250, '2026-11-01', 'Cash', '2026-10');
+  await milk.buyExtra(66, '2026-11-02');
+  L = milk.ledger('2026-11-02');
+  expect(L.months.map((m) => m.left)).toEqual([50, 200]);
+  expect(L.balance).toBe(250); // 500 owed − 250 paid; the ₹66 packet is not a payment
+  expect(L.extras).toHaveLength(1);
+  // a payment with no month (older data) fills the oldest unpaid month first
+  await budget.addEntry({ date: '2026-11-02', amount: 100, cat: budget.MILK_CAT, mode: 'Cash', note: 'old' });
+  L = milk.ledger('2026-11-02');
+  expect(L.months.map((m) => m.left)).toEqual([0, 150]);
+  expect(L.payMonth).toBe('2026-11');
+});

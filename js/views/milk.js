@@ -74,13 +74,19 @@ function balanceCard(w) {
     <div class="row between">
       <div><p class="label">Milkman · to pay</p>
         <p class="big2 num ${L.balance > 0 ? '' : 'ok-text'}" data-test="milk-due">${L.balance > 0 ? money(L.balance) : L.balance < 0 ? `${money(-L.balance)} advance` : 'All paid ✓'}</p></div>
-      ${w && L.balance > 0 ? '<button class="btn primary small" data-act="pay" data-test="pay-milk">Pay</button>' : ''}
+      <div class="row gap-s">
+        ${w ? '<button class="btn ghost small" data-act="extra" data-test="extra-milk">Bought separately</button>' : ''}
+        ${w && L.balance > 0 ? '<button class="btn primary small" data-act="pay" data-test="pay-milk">Pay</button>' : ''}
+      </div>
     </div>
     <div class="bal-lines">
       <span>${monthShortName(mk)} so far <b>${money(L.thisMonth)}</b> · ${number(L.thisMonthLitres)} L</span>
       ${L.earlier > 0 ? `<span class="warn-text" data-test="milk-earlier">Earlier unpaid <b>${money(L.earlier)}</b></span>`
         : L.earlier < 0 ? `<span class="ok-text">Paid ahead <b>${money(-L.earlier)}</b></span>` : ''}
     </div>
+    ${L.months.length ? `<div class="list" data-test="milk-months">${L.months.slice(-4).reverse().map((r) => `<div class="mv-row" data-month="${r.mk}">
+      <span>${monthShortName(r.mk)} bill <b>${money(r.bill)}</b></span><span class="num">paid ${money(r.paid)} · ${r.left > 0 ? `<b class="warn-text">${money(r.left)} left</b>` : r.left < 0 ? `<b class="ok-text">${money(-r.left)} ahead</b>` : '<b class="ok-text">clear ✓</b>'}</span></div>`).join('')}</div>` : ''}
+    ${L.extras.length ? `<h3 class="mini-title">Bought separately</h3><div class="list" data-test="milk-extras">${L.extras.slice(0, 2).map(entryRow).join('')}</div>` : ''}
     ${L.payments.length ? `<h3 class="mini-title">Paid</h3><div class="list" data-test="milk-payments">${L.payments.slice(0, 3).map(entryRow).join('')}</div>` : ''}
   </section>`;
 }
@@ -182,20 +188,58 @@ export function openMilkDay(date) {
   el.querySelector('[data-clear]')?.addEventListener('click', async () => { await milk.clearDay(date); closeSheet(true); toast('Cleared'); });
 }
 
-// Pay the milkman: full balance pre-filled, change it for a part payment.
+// Pay the milkman for a month: the oldest unpaid month is pre-filled; change month or amount (part payment).
 export function openPayMilk() {
   const L = milk.ledger();
+  const opts = [...new Set([...L.months.filter((m) => m.left > 0).map((m) => m.mk), L.payMonth])].sort();
+  const leftOf = (k) => Math.max(0, (L.months.find((m) => m.mk === k) || { left: 0 }).left);
   const el = openSheet(`
     <form class="stack" data-test="pay-sheet" novalidate>
       <h2 class="sheet-title">🥛 Pay milkman</h2>
-      <p class="small">Due <b>${money(Math.max(0, L.balance))}</b>${L.earlier > 0 ? ` (incl. earlier ${money(L.earlier)})` : ''}. Change the amount for a part payment — the rest carries over.</p>
+      <label class="small">For the bill of
+        <select name="month" class="input" data-test="pay-month" aria-label="Bill month">${opts.map((k) => `<option value="${k}" ${k === L.payMonth ? 'selected' : ''}>${monthShortName(k)} ${k.slice(0, 4)}</option>`).join('')}</select></label>
+      <p class="small">Left for that month <b data-left>${money(leftOf(L.payMonth))}</b>. Change the amount for a part payment — the rest stays due. It counts in your budget on the day you pay.</p>
       <label class="amount-field"><span>₹</span>
-        <input name="amount" type="number" inputmode="decimal" min="0" step="any" value="${Math.max(0, L.balance)}" aria-label="Amount paid"></label>
+        <input name="amount" type="number" inputmode="decimal" min="0" step="any" value="${leftOf(L.payMonth)}" aria-label="Amount paid"></label>
       <div class="seg" role="radiogroup" aria-label="Mode">
         <button type="button" class="on" data-mode="Cash">Cash</button><button type="button" data-mode="UPI">UPI</button>
       </div>
       <input name="date" class="input" type="date" value="${today()}" aria-label="Date">
       <button class="btn primary" type="submit" data-save>${icon('check')} Paid</button>
+    </form>`);
+  const f = el.querySelector('form');
+  let mode = 'Cash';
+  f.month.addEventListener('change', () => { f.amount.value = leftOf(f.month.value); el.querySelector('[data-left]').textContent = money(leftOf(f.month.value)); });
+  el.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    mode = b.dataset.mode;
+    el.querySelectorAll('[data-mode]').forEach((x) => x.classList.toggle('on', x === b));
+  }));
+  f.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const amount = Number(f.amount.value);
+    if (!(amount > 0)) { f.amount.focus(); return; }
+    const forMonth = f.month.value;
+    const e = await milk.pay(amount, f.date.value || today(), mode, forMonth);
+    closeSheet(true);
+    const left = milk.ledger().months.find((m) => m.mk === forMonth)?.left || 0;
+    toast(`Paid ${money(amount)} for ${monthShortName(forMonth)}${left > 0 ? ` · ${money(left)} left` : ' · clear'} ✓`, { undo: () => store.remove('entries', e.id) });
+  });
+}
+
+// Milk bought separately (shop packet): in the budget, but the milkman's bill stays the same.
+export function openExtraMilk() {
+  const el = openSheet(`
+    <form class="stack" data-test="extra-sheet" novalidate>
+      <h2 class="sheet-title">🥛 Bought separately</h2>
+      <p class="small">A packet or extra milk you paid for yourself. It counts in your budget but does <b>not</b> reduce the milkman's bill.</p>
+      <label class="amount-field"><span>₹</span>
+        <input name="amount" type="number" inputmode="decimal" min="0" step="any" aria-label="Amount paid"></label>
+      <input name="note" class="input" placeholder="Note (optional)" aria-label="Note">
+      <div class="seg" role="radiogroup" aria-label="Mode">
+        <button type="button" class="on" data-mode="Cash">Cash</button><button type="button" data-mode="UPI">UPI</button>
+      </div>
+      <input name="date" class="input" type="date" value="${today()}" aria-label="Date">
+      <button class="btn primary" type="submit" data-save>${icon('check')} Save</button>
     </form>`);
   const f = el.querySelector('form');
   let mode = 'Cash';
@@ -207,10 +251,9 @@ export function openPayMilk() {
     ev.preventDefault();
     const amount = Number(f.amount.value);
     if (!(amount > 0)) { f.amount.focus(); return; }
-    const e = await milk.pay(amount, f.date.value || today(), mode);
+    const e = await milk.buyExtra(amount, f.date.value || today(), mode, f.note.value.trim());
     closeSheet(true);
-    const left = milk.ledger().balance;
-    toast(`Paid ${money(amount)}${left > 0 ? ` · ${money(left)} left` : ' · all clear'} ✓`, { undo: () => store.remove('entries', e.id) });
+    toast(`Milk ${money(amount)} saved ✓`, { undo: () => store.remove('entries', e.id) });
   });
 }
 
@@ -224,6 +267,7 @@ export function bind(root, rerender) {
     if (act === 'tick') { bump(t); await milk.tickToday(); toast(`Milk ${milk.defaultLabel()} logged ✓`, { action: { label: 'Change', fn: () => openMilkDay(today()) } }); }
     else if (act === 'skip-today') { await milk.skipDay(today()); toast('Skipped today'); }
     else if (act === 'pay') openPayMilk();
+    else if (act === 'extra') openExtraMilk();
     else if (act === 'month-prev') { state.mk = shiftMonth(state.mk, -1); rerender(); }
     else if (act === 'month-next') { state.mk = shiftMonth(state.mk, 1); rerender(); }
     else if (t.dataset.day) openMilkDay(t.dataset.day);
