@@ -42,9 +42,12 @@ function quickActions() {
   const md = milk.day(t);
   const w = store.canWrite();
   const shopN = shoppingList().length;
-  const milkBtn = !md
-    ? `<button class="qa-btn" data-act="milk-tick" data-test="chip-milk" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('milk')}</span><span class="qa-t">Tick milk ${number(milk.settings().litres)} L</span></button>`
-    : `<a class="qa-btn done" href="#/milk" data-test="chip-milk"><span class="qa-ic">${icon('check')}</span><span class="qa-t">${md.skip ? 'Milk skipped' : `Milk ✓ ${number(md.litres)} L`}</span></a>`;
+  // One tap opens today's milk screen (amounts per milk, Save). It never logs by itself.
+  const mIcon = md ? icon('check') : icon('milk');
+  const mText = md ? (md.skip ? 'Milk skipped' : `Milk ✓ ${number(milk.dayLitres(md))} L`) : `Log milk ${number(milk.settings().litres)} L`;
+  const milkBtn = w
+    ? `<button class="qa-btn ${md ? 'done' : ''}" data-act="milk-open" data-test="chip-milk"><span class="qa-ic">${mIcon}</span><span class="qa-t">${mText}</span></button>`
+    : `<a class="qa-btn ${md ? 'done' : ''}" href="#/milk" data-test="chip-milk"><span class="qa-ic">${mIcon}</span><span class="qa-t">${mText}</span></a>`;
   return `<section class="qa" data-test="quick">
     <button class="qa-btn primary" data-act="qa-add" ${w ? '' : 'disabled'}><span class="qa-ic">${icon('plus')}</span><span class="qa-t">Add</span></button>
     ${milkBtn}
@@ -102,9 +105,10 @@ export function render() {
   <section class="card hero ${s.left < 0 ? 'neg' : ''}" data-test="hero">
     ${gauge(s.spent, s.limit, overallLvl)}
     <div class="hero-main">
-      <p class="label">${isNow ? 'Left this month' : s.left >= 0 ? `Saved in ${monthName(mk)}` : `Over in ${monthName(mk)}`}</p>
-      <p class="big" data-test="left">${money(isNow ? s.left : Math.abs(s.left))}</p>
-      <p class="hero-sub">spent ${money(s.spent)} of ${money(s.limit)}</p>
+      <p class="label">${isNow ? 'Spent this month' : `Spent in ${monthName(mk)}`}</p>
+      <p class="big" data-test="spent">${money(s.spent)}</p>
+      <p class="hero-left"><span data-test="left-label">${isNow ? 'Balance left' : s.left >= 0 ? 'Saved' : 'Over by'}</span> <b data-test="left">${money(isNow ? s.left : Math.abs(s.left))}</b></p>
+      <p class="hero-sub">of ${money(s.limit)} budget</p>
       ${isNow ? `<div class="hero-stats">
         <span><b data-test="days-left">${s.daysLeft}</b> days left</span>
         <span><b data-test="safe-daily">${money(s.safeDaily)}</b> /day safe</span>
@@ -193,10 +197,6 @@ export function bind(root, rerender) {
     else if (act === 'checklist') billsSheet('checklist');
     else if (act === 'qa-add') openSpendSheet();
     else if (act === 'activity') activitySheet();
-    else if (act === 'milk-tick') {
-      bump(t);
-      await milk.tickToday();
-      toast(`Milk ${milk.defaultLabel()} logged ✓`, { action: { label: 'Change', fn: async () => { const m = await import('./milk.js'); m.openMilkDay(today()); } } });
-    }
+    else if (act === 'milk-open') { const m = await import('./milk.js'); m.openMilkDay(today()); }
   });
 }

@@ -90,11 +90,15 @@ test('home: previous / next month, then back to this month; no scan option anywh
   await expect(page.locator('[data-test="home-month"]')).toContainText('October 2026');
   await page.locator('[data-test="home-month"] [data-act="hmonth-prev"]').click();
   await expect(page.locator('[data-test="home-month"]')).toContainText('September 2026');
-  await expect(page.locator('.hero .label')).toHaveText('Saved in September 2026');
+  await expect(page.locator('.hero .label')).toHaveText('Spent in September 2026');
+  await expect(page.locator('[data-test="left-label"]')).toHaveText('Saved');
+  await expect(page.locator('[data-test="spent"]')).toHaveText('₹0');
   await expect(page.locator('[data-test="left"]')).toHaveText('₹40,000'); // nothing spent in September
   await expect(page.locator('[data-test="days-left"]')).toHaveCount(0);
   await page.locator('[data-test="home-month"] [data-act="hmonth-next"]').click();
-  await expect(page.locator('.hero .label')).toHaveText('Left this month');
+  await expect(page.locator('.hero .label')).toHaveText('Spent this month');
+  await expect(page.locator('[data-test="left-label"]')).toHaveText('Balance left');
+  await expect(page.locator('[data-test="spent"]')).toHaveText('₹250');
   await expect(page.locator('[data-test="left"]')).toHaveText('₹39,750');
   // leaving Home and coming back starts on this month again
   await page.locator('[data-test="home-month"] [data-act="hmonth-prev"]').click();
@@ -613,7 +617,9 @@ test('edit any entry: kitchen purchase, sabzi price, Today pill, Recent rows (sp
 
   // Recent on Home: tap rows to edit
   await go(page, T, 'home');
-  await page.locator('[data-test="chip-milk"]').click();
+  await page.locator('[data-test="chip-milk"]').click(); // opens the milk screen; nothing is logged until Save
+  await expect(page.locator('[data-test="milk-day"]')).toBeVisible();
+  await page.locator('[data-test="milk-day"] [data-save]').click();
   await addSpend(page, 150, 'Home misc', 'Cash', 'Tape');
   await page.locator('[data-test="recent"] [data-open="spend"]').first().click();
   await expect(page.locator('.sheet .sheet-title')).toHaveText('Edit spend');
@@ -740,4 +746,40 @@ test('next month: new-month card on the 1st, limits from usual spend, unpaid mil
   await page.locator('[data-test="use-usual"]').click();
   const travel = page.locator('.limit-row', { has: page.locator('input[value="Office travel"]') }).locator('input[name="limit"]');
   expect(Number(await travel.inputValue())).not.toBe(5000);
+});
+
+test('home v2.3: spent on top with balance below; milk opens the day screen (no auto-tick); to-pay sits below the calendar', async ({ page }) => {
+  await fresh(page, T, 'home');
+  await addSpend(page, 1000, 'Home misc', 'Cash', 'Bulbs');
+  await expect(page.locator('[data-test="spent"]')).toHaveText('₹1,000');
+  await expect(page.locator('[data-test="left"]')).toHaveText('₹39,000');
+  // spent is above the balance line
+  const ys = await page.evaluate(() => [document.querySelector('[data-test="spent"]'), document.querySelector('[data-test="left"]')].map((e) => e.getBoundingClientRect().top));
+  expect(ys[0]).toBeLessThan(ys[1]);
+
+  // milk: one tap opens the screen, NOTHING is saved yet
+  await expect(page.locator('[data-test="chip-milk"]')).toContainText('Log milk');
+  await page.locator('[data-test="chip-milk"]').click();
+  const day = page.locator('[data-test="milk-day"]');
+  await expect(day).toBeVisible();
+  await expect(day.locator('[data-day-total]')).toContainText('3.5 L');
+  expect(await page.evaluate(async () => (await import('/js/store.js')).list('milk').length)).toBe(0);
+  // change an amount: the total follows, then Save
+  await day.locator('[name="l-cow"]').fill('2');
+  await expect(day.locator('[data-day-total]')).toContainText('4 L');
+  await day.locator('[data-save]').click();
+  await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 4 L');
+  // tap again → same screen with today's saved amounts, to change and save
+  await page.locator('[data-test="chip-milk"]').click();
+  await expect(day.locator('[name="l-cow"]')).toHaveValue('2');
+  await day.locator('[name="l-cow"]').fill('1.5');
+  await day.locator('[data-save]').click();
+  await expect(page.locator('[data-test="chip-milk"]')).toContainText('Milk ✓ 3.5 L');
+
+  // Milk screen: the amount to pay is BELOW the calendar
+  await go(page, T, 'milk');
+  const pos = await page.evaluate(() => [document.querySelector('[data-test="calendar"]'), document.querySelector('[data-test="milk-balance"]')].map((e) => e.getBoundingClientRect().top));
+  expect(pos[0]).toBeLessThan(pos[1]);
+  await expect(page.locator('[data-test="milk-due"]')).toBeVisible();
+  await expect(page.locator('.top .sub')).toContainText('to pay');
 });

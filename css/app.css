@@ -678,3 +678,10 @@ body.role-viewer .fab { visibility: hidden; }
 .member:first-child { border-top: 0; }
 .role-sel { width: auto; min-height: 44px; padding: 0 8px; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .06em; font-size: 16px; }
+
+/* v2.3 home: spent big, balance below; milk day total */
+.hero-left { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 15px; color: var(--muted); }
+.hero-left b { font: 780 20px/1.1 var(--font-display); letter-spacing: -.02em; color: var(--ok); }
+.hero.neg .hero-left b { color: var(--over); }
+.hero.neg .big { color: var(--text); }
+.day-total { font-size: 14px; text-align: center; padding: 8px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }

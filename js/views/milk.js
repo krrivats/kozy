@@ -63,6 +63,7 @@ function wireStepper(el) {
   el.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => {
     const inp = b.parentElement.querySelector('input');
     inp.value = Math.max(0, Math.round(((Number(inp.value) || 0) + Number(b.dataset.step)) * 100) / 100);
+    inp.dispatchEvent(new Event('input', { bubbles: true })); // so the day total updates
   }));
 }
 
@@ -97,6 +98,7 @@ export function render() {
   const td = milk.day(t);
   const m = milk.month(state.mk);
   const w = store.canWrite();
+  const toPay = milk.ledger().balance;
 
   const first = parse(`${state.mk}-01`).getDay(); // 0 = Sunday
   const lead = (first + 6) % 7; // Monday first
@@ -112,7 +114,7 @@ export function render() {
   }
 
   return `
-  ${header('Milk log', `${milk.defaultLabel()} · ${money(s.perDay)}/day`)}
+  ${header('Milk log', `${milk.defaultLabel()} · ${money(s.perDay)}/day${toPay > 0 ? ` · to pay ${money(toPay)}` : ''}`)}
 
   ${!s.asked && store.isOwner() ? `
   <section class="card setup" data-test="milk-setup">
@@ -138,14 +140,14 @@ export function render() {
       </div>` : '<p class="muted">Today: not logged yet</p>'}`}
   </section>
 
-  ${balanceCard(w)}
-
   ${monthSwitch(state.mk)}
   <section class="card">
     <div class="cal-head">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d) => `<span>${d}</span>`).join('')}</div>
     <div class="cal" data-test="calendar">${cells.join('')}</div>
     <div class="cal-legend small muted"><span><i class="lg got"></i> got milk</span><span><i class="lg skip"></i> skipped</span><span>Tap a day to change</span></div>
   </section>
+
+  ${balanceCard(w)}
 
   <section class="card" data-test="milk-total">
     <div class="sum3">
@@ -169,7 +171,8 @@ export function openMilkDay(date) {
       <h2 class="sheet-title">Milk · ${dayLabel(date)}</h2>
       ${list.map((t) => `<div class="mday-row"><span class="mday-name">${t.emoji} ${esc(t.name)}<span class="muted small block">${money(t.rate)}/L</span></span>
         ${stepper(`l-${t.id}`, start[t.id] ?? 0)}</div>`).join('')}
-      <button class="btn primary" type="submit">${icon('check')} Save</button>
+      <p class="day-total" data-day-total aria-live="polite"></p>
+      <button class="btn primary" type="submit" data-save>${icon('check')} Save</button>
       <div class="row gap">
         <button type="button" class="btn ghost grow" data-skip>Skip this day</button>
         ${d ? '<button type="button" class="btn ghost grow danger-text" data-clear>Clear</button>' : ''}
@@ -177,6 +180,14 @@ export function openMilkDay(date) {
     </form>`);
   wireStepper(el);
   const f = el.querySelector('form');
+  const totalEl = el.querySelector('[data-day-total]');
+  const showTotal = () => {
+    let l = 0; let c = 0;
+    for (const t of list) { const v = Number(f[`l-${t.id}`].value) || 0; l += v; c += v * Number(t.rate || 0); }
+    totalEl.innerHTML = `Today: <b>${number(l)} L</b> · <b>${money(c)}</b>`;
+  };
+  f.addEventListener('input', showTotal);
+  showTotal();
   f.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const amounts = Object.fromEntries(list.map((t) => [t.id, Number(f[`l-${t.id}`].value) || 0]));

@@ -154,3 +154,13 @@ Some replace v1 decisions above (marked ♻️).
 | 97 | **Milk bill is paid "for a month".** Pay sheet has "For the bill of <month>" (oldest unpaid pre-filled); the money is a Milk spend counted in the budget on the day it is paid (Nov 1 pay for October → November's budget). Milk screen shows each month: bill · paid · left. Payments with no month (older data) fill the oldest unpaid month first. | October's bill is paid on 1 Nov; you want to see "October paid" and still have it in November's cash. |
 | 98 | **"Bought separately"** (milk-extra) on the Milk screen: a Milk spend that counts in the budget but is NOT a payment to the milkman. Extra litres from the milkman still go through the day editor (+/−) into that month's bill. | A shop packet used to reduce what was owed to the milkman by mistake. |
 | 96 | **Settings → Account → Set a password** for Google accounts (same account, same data): then email + password also works in the iPhone Home Screen app. The Home Screen login screen tells you how. | Google can't sign in inside the Home Screen app, so a Google account needs a password to use it there. |
+
+---
+
+## v2.3 (3 Nov) — Home + Milk tweaks
+
+| # | Decision | Why |
+|---|---|---|
+| 97 | **Home hero**: big number = **Spent this month**; **Balance left** sits right below it (green, red when over). Past months show "Spent in <month>" + "Saved" / "Over by". | Asked: spent first, balance under it. |
+| 98 | **Milk on Home never logs by itself.** Tap opens today's milk screen (usual amounts filled in, a live "Today: 3.5 L · ₹223" line, Save). Tap again later to change and Save. Viewers get a link to the Milk screen. The Milk screen's own one-tap button is unchanged. | Asked: open details, then Save, easy to change. |
+| 99 | **Milk screen order**: today → month → calendar → **To pay (milkman)** → month totals. The header also says "to pay ₹X". | Asked: the amount to pay below the calendar. |
